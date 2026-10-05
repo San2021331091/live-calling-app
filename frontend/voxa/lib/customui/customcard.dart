@@ -16,7 +16,9 @@ class CustomCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>  chatModel.isGroup! ? GroupChatPage(group: chatModel) : IndividualPage(chatModel: chatModel)
+            builder: (context) => chatModel.isGroup == true
+                ? GroupChatPage(group: chatModel)
+                : IndividualPage(chatModel: chatModel),
           ),
         );
       },
@@ -31,7 +33,7 @@ class CustomCard extends StatelessWidget {
                 radius: 26,
                 backgroundColor: Colors.lightBlue,
                 child: SvgPicture.asset(
-                  chatModel.isGroup!
+                  chatModel.isGroup == true
                       ? "assets/groups.svg"
                       : "assets/persons.svg",
                   height: 34,
@@ -66,7 +68,7 @@ class CustomCard extends StatelessWidget {
                 ],
               ),
               trailing: Text(
-                chatModel.time!,
+                chatModel.time ?? '',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.blue,

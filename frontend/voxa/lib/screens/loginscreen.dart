@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:country_code_picker/country_code_picker.dart';
+import 'package:voxa/services/api_client.dart';
 import 'package:voxa/screens/homescreen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,6 +13,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -20,18 +22,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String countryCode = '+1';
   bool _obscurePassword = true;
+  bool _isRegister = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // WhatsApp-style autofocus on phone field
     Future.delayed(const Duration(milliseconds: 400), () {
-      _phoneFocus.requestFocus();
+      if (mounted) _phoneFocus.requestFocus();
     });
   }
 
   @override
   void dispose() {
+    _nameController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
     _phoneFocus.dispose();
@@ -83,9 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 30),
 
-                      const Text(
-                        'Login',
-                        style: TextStyle(
+                      Text(
+                        _isRegister ? 'Create account' : 'Login',
+                        style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -94,8 +98,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 8),
 
-                      const Text(
-                        'Login with your phone number',
+                      Text(
+                        _isRegister
+                            ? 'Create an account with your phone number'
+                            : 'Login with your phone number',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -105,6 +111,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
 
                       const SizedBox(height: 30),
+
+                      if (_isRegister) ...[
+                        TextFormField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          validator: (value) {
+                            final name = value?.trim() ?? '';
+                            if (name.isEmpty) return 'Name is required';
+                            if (name.length > 80) return 'Name is too long';
+                            return null;
+                          },
+                          decoration: _inputDecoration(
+                            hint: 'Name',
+                            icon: Icons.person,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
                       // PHONE FIELD WITH COUNTRY CODE PICKER
                       Row(
@@ -192,25 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              final phone =
-                                  '$countryCode${_phoneController.text.trim()}';
-                              final password =
-                                  _passwordController.text.trim();
-
-                              debugPrint('Phone: $phone');
-                              debugPrint('Password: $password');
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const HomeScreen(),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _submit,
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 const Color.fromARGB(255, 4, 230, 11),
@@ -218,8 +225,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            'Continue',
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                            _isRegister ? 'Create account' : 'Continue',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -230,6 +246,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
 
                       const SizedBox(height: 20),
+
+                      TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => setState(() {
+                                  _isRegister = !_isRegister;
+                                  _formKey.currentState?.reset();
+                                }),
+                        child: Text(
+                          _isRegister
+                              ? 'Already have an account? Login'
+                              : 'New to Voxa? Create an account',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
 
                       const Text(
                         'By continuing you agree to our Terms & Privacy Policy',
@@ -272,5 +306,44 @@ class _LoginScreenState extends State<LoginScreen> {
         fontSize: 15,
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final phone = '$countryCode${_phoneController.text.trim()}';
+    setState(() => _isLoading = true);
+    try {
+      if (_isRegister) {
+        await ApiClient.instance.register(
+          name: _nameController.text.trim(),
+          phone: phone,
+          password: _passwordController.text,
+        );
+      } else {
+        await ApiClient.instance.login(
+          phone: phone,
+          password: _passwordController.text,
+        );
+      }
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showError('Could not connect to the server. Check your connection.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

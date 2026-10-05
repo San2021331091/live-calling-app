@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
@@ -8,10 +11,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:marquee/marquee.dart';
 import 'package:voxa/colors/colors.dart';
 import 'package:voxa/model/chatmodel.dart';
+import 'package:voxa/model/message_model.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:voxa/screens/userprofilescreen.dart';
 import 'package:voxa/screens/videocallscreen.dart';
 import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/services/api_client.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class IndividualPage extends StatefulWidget {
   const IndividualPage({super.key, required this.chatModel});
@@ -25,19 +31,123 @@ class IndividualPage extends StatefulWidget {
 
 class _IndividualPageState extends State<IndividualPage> {
   final TextEditingController _messageController = TextEditingController();
+  final List<MessageModel> messages = [];
   bool isTyping = false;
   final FocusNode _focusNode = FocusNode();
   bool showEmojiPicker = false;
+  bool _isLoading = true;
+  String? _chatError;
+  WebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _subscription;
 
   @override
   void initState() {
     super.initState();
 
-    _messageController.addListener(() {
+    _messageController.addListener(_handleMessageChanged);
+    _initializeChat();
+  }
+
+  @override
+  void dispose() {
+    _messageController
+      ..removeListener(_handleMessageChanged)
+      ..dispose();
+    _focusNode.dispose();
+    _subscription?.cancel();
+    _channel?.sink.close();
+    super.dispose();
+  }
+
+  void _handleMessageChanged() {
+    if (mounted) {
+      setState(() => isTyping = _messageController.text.trim().isNotEmpty);
+    }
+  }
+
+  Future<void> _initializeChat() async {
+    final chatId = widget.chatModel.id;
+    if (chatId == null) {
       setState(() {
-        isTyping = _messageController.text.trim().isNotEmpty;
+        _isLoading = false;
+        _chatError = 'Start this conversation from your registered contacts.';
       });
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _chatError = null;
     });
+    try {
+      final channel = await ApiClient.instance.connectToChat(chatId);
+      _channel = channel;
+      _subscription = channel.stream.listen(
+        _handleSocketEvent,
+        onError: (Object _) {
+          if (mounted) setState(() => _chatError = 'Live connection lost.');
+        },
+        onDone: () {
+          if (mounted) setState(() => _chatError = 'Live connection closed.');
+        },
+      );
+      final history = await ApiClient.instance.loadMessages(chatId);
+      if (!mounted) return;
+      setState(() {
+        for (final message in history) {
+          if (!messages.any((item) => item.id == message.id)) {
+            messages.add(message);
+          }
+        }
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _chatError = error.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _chatError = 'Could not connect to the chat. Check your connection.';
+        });
+      }
+    }
+  }
+
+  void _handleSocketEvent(dynamic event) {
+    try {
+      final decoded = jsonDecode(event as String) as Map<String, dynamic>;
+      if (decoded['type'] == 'message' &&
+          decoded['message'] is Map<String, dynamic>) {
+        final message = MessageModel.fromJson(
+          decoded['message'] as Map<String, dynamic>,
+        );
+        if (mounted && !messages.any((item) => item.id == message.id)) {
+          setState(() => messages.add(message));
+        }
+      } else if (decoded['type'] == 'error' && mounted) {
+        setState(() => _chatError = decoded['error'] as String?);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _chatError = 'Received an invalid chat event.');
+    }
+  }
+
+  void _sendMessage() {
+    final content = _messageController.text.trim();
+    final channel = _channel;
+    if (content.isEmpty) return;
+    if (channel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The live chat is not connected. Retry first.')),
+      );
+      return;
+    }
+    ApiClient.instance.sendMessage(channel, content);
+    _messageController.clear();
   }
 
   @override
@@ -214,41 +324,82 @@ class _IndividualPageState extends State<IndividualPage> {
                   ],
                 ),
               ),
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
+              child: Column(
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.symmetric(vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        "Hello! How are you?",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                  if (_chatError != null)
+                    MaterialBanner(
+                      content: Text(_chatError!),
+                      actions: [
+                        TextButton(
+                          onPressed: _initializeChat,
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.symmetric(vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColor.dartTealGreen,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        "I'm fine, thanks!",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
+                  Expanded(
+                    child: _isLoading && messages.isEmpty
+                        ? const Center(child: CircularProgressIndicator())
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              return Align(
+                                alignment: message.isMe
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: Container(
+                                  constraints: BoxConstraints(
+                                    maxWidth:
+                                        MediaQuery.of(context).size.width * 0.75,
+                                  ),
+                                  padding: const EdgeInsets.all(10),
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: message.isMe
+                                        ? AppColor.dartTealGreen
+                                        : Colors.indigo,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (widget.chatModel.isGroup == true &&
+                                          !message.isMe)
+                                        Text(
+                                          message.sender,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      Text(
+                                        message.message,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      Align(
+                                        alignment: Alignment.bottomRight,
+                                        child: Text(
+                                          message.time,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -354,20 +505,7 @@ class _IndividualPageState extends State<IndividualPage> {
                       size: 26,
                       weight: 700,
                     ),
-                    onPressed: () {
-                      if (isTyping) {
-                        // SEND MESSAGE
-                        final message = _messageController.text.trim();
-                        if (message.isNotEmpty) {
-                          print("Sending: $message");
-                          _messageController
-                              .clear(); // auto switches back to mic
-                        }
-                      } else {
-                        // MIC ACTION
-                        print("Start recording");
-                      }
-                    },
+                    onPressed: isTyping ? _sendMessage : null,
                   ),
                 ),
               ],

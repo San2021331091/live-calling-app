@@ -1,59 +1,50 @@
 # Voxa
 
-Voxa is a modern **calling app** built using **Flutter** and **Fiber**. It aims to provide seamless video communication with a simple and intuitive interface.
+Voxa is a Flutter messaging and calling app backed by a Go API and PostgreSQL. The backend provides phone/password authentication, JWT-protected APIs, direct and group/community conversations, persisted message history, and real-time WebSocket delivery.
 
----
+## Requirements
 
-## Features
+- Go 1.23.4 or later
+- PostgreSQL 13 or later
+- Flutter and Dart 3.8.1 or later
+- Android emulator, iOS simulator, or a physical device
 
-- High-quality **video calls**.
-- **Camera support** with Android CameraX integration.
-- **Media sharing**: pick images, files, and videos.
-- **Emoji picker** for richer conversations.
-- **Contact integration** to easily call your friends.
-- **Location sharing** using Geolocator.
-- **Country code picker** for easy international use.
-- Smooth **UI animations** with marquee text support.
-- Persistent data storage with **Shared Preferences**.
+## Start the backend
 
-## Getting Started
+Create a PostgreSQL database named `voxa`, then copy `backend/.env.example` to `backend/.env`. Set `DATABASE_URL` to the database connection string and replace `JWT_SECRET` with a private random value of at least 32 characters. For example, generate one with `openssl rand -hex 32`.
 
-### Prerequisites
+From the repository root, run:
 
-- Flutter SDK >= 3.8.1
-- Dart SDK >= 3.8.1
-- Android Studio or Xcode for mobile development
-- Physical device or emulator for testing
+```powershell
+Set-Location backend
+go run .
+```
 
+At startup the backend checks its PostgreSQL connection and applies any pending SQL files in `backend/migrations/`. This creates the `users`, `chats`, `chat_members`, and `messages` tables; the migration history is kept in `schema_migrations`. No manual table setup is required.
 
-## Dependencies
+The API listens on port `8080` by default. `GET /healthz` checks that the service is running and `GET /readyz` checks its database connection.
 
-Voxa uses the following main dependencies:
+## Run the Flutter app
 
-* `flutter_svg` – for SVG image rendering
-* `marquee` – for scrolling text effects
-* `file_picker` – for picking files from device storage
-* `image_picker` – for camera and gallery images
-* `geolocator` – for location services
-* `flutter_contacts` – for accessing device contacts
-* `emoji_picker_flutter` – for emoji input
-* `shared_preferences` – for local data storage
-* `camera` & `camera_android_camerax` – for video call camera handling
-* `video_player` – for playing videos in chat
-* `country_code_picker` – for international phone input
-* `path_provider` – for filesystem access
-* `mime` – for file type detection
+Start the backend first. From a second terminal, run:
 
----
+```powershell
+Set-Location frontend\voxa
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+```
 
+`10.0.2.2` is the Android emulator address for the host machine. For a physical device, replace it with the computer's LAN address, for example `http://192.168.1.20:8080`. For Flutter Web or desktop, use the address where the backend is reachable, commonly `http://localhost:8080`.
 
+The debug Android manifest permits local cleartext HTTP for development. Configure HTTPS for deployed builds; do not expose the development API over an untrusted network. Set `CORS_ORIGINS` to a comma-separated list of trusted web app origins when deploying.
 
-## Contributing
+## Authentication and messaging
 
-Contributions are welcome! Feel free to submit a pull request or open an issue.
+- Create an account or sign in with an international phone number and password. The backend normalizes phone numbers, hashes passwords with bcrypt, and returns a 24-hour JWT.
+- Tokens are stored using the platform's secure storage and sent as Bearer tokens to protected HTTP endpoints.
+- Users can start direct chats with registered accounts, create groups, and create categorized communities with selected members.
+- Chat history is persisted in PostgreSQL. Each conversation uses an authenticated WebSocket at `/ws/{chatId}`; send `{"type":"message","content":"Hello"}` to save and broadcast a message to the conversation's connected members.
+- The REST API exposes `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/users`, `GET /api/chats`, `POST /api/chats/direct`, `POST /api/chats/groups`, `POST /api/chats/communities`, and `GET /api/chats/{chatId}/messages`. Protected endpoints require `Authorization: Bearer <token>`.
 
----
+## Flutter project
 
-
-
-
+The app source is in [`frontend/voxa`](./frontend/voxa). Run `flutter pub get` there after cloning. The chat and contact lists load registered accounts and conversations from the backend; direct, group, and community text messages use the same persisted WebSocket chat service.

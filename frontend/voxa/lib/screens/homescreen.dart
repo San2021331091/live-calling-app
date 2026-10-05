@@ -9,6 +9,8 @@ import 'package:voxa/screens/creategroup.dart';
 import 'package:voxa/screens/myprofilescreen.dart';
 import 'package:voxa/screens/searchscreen.dart';
 import 'package:voxa/screens/status_screen.dart';
+import 'package:voxa/screens/loginscreen.dart';
+import 'package:voxa/services/api_client.dart';
 
 // HomeScreen widget with TabBar and AppBar
 class HomeScreen extends StatefulWidget {
@@ -133,6 +135,23 @@ class HomeScreenState extends State<HomeScreen>
                                 MaterialPageRoute(
                                   builder: (_) => const CommunityPage(),
                                 ),
+                              );
+                            },
+                          ),
+                          PopupMenuItem(
+                            value: "Sign out",
+                            child: const Text(
+                              "Sign out",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            onTap: () async {
+                              await ApiClient.instance.signOut();
+                              if (!mounted) return;
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                                (_) => false,
                               );
                             },
                           ),

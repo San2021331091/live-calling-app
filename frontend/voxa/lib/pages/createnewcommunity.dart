@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/colors/colors.dart';
+import 'package:voxa/model/chatmodel.dart';
+import 'package:voxa/model/user_model.dart';
+import 'package:voxa/services/api_client.dart';
 
 class AddCommunityInfo extends StatefulWidget {
   final String communityType;
@@ -16,16 +19,77 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
   File? _communityImage;
   final TextEditingController _nameController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
-
-  // Groups list
-  final List<Map<String, String>> groups = [
-    {"name": "Flutter Devs", "img": "https://i.pravatar.cc/150?img=5"},
-    {"name": "Family", "img": "https://i.pravatar.cc/150?img=6"},
-    {"name": "Work", "img": "https://i.pravatar.cc/150?img=7"},
-    {"name": "Friends", "img": "https://i.pravatar.cc/150?img=8"},
-  ];
-
   final Set<String> selectedGroups = {}; // Track selected groups
+  List<UserModel> _users = [];
+  bool _isLoading = true;
+  bool _isCreating = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      _users = await ApiClient.instance.loadUsers();
+      _loadError = null;
+    } on ApiException catch (error) {
+      _loadError = error.message;
+    } catch (_) {
+      _loadError = 'Could not load Voxa users.';
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _createCommunity() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty || selectedGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            name.isEmpty
+                ? 'Enter a community name.'
+                : 'Select at least one Voxa participant.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _isCreating = true);
+    try {
+      final community = await ApiClient.instance.createCommunity(
+        name: name,
+        type: widget.communityType,
+        members: selectedGroups.toList(),
+      );
+      if (mounted) Navigator.pop<ChatModel>(context, community);
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not create community. Check your connection.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? pickedFile = await _picker.pickImage(
@@ -124,12 +188,6 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -157,7 +215,10 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
             Text(
               "Community Type: ${widget.communityType}",
               style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.purple,
+              ),
             ),
             const SizedBox(height: 30),
 
@@ -167,10 +228,15 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
               child: CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey.shade300,
-                backgroundImage:
-                    _communityImage != null ? FileImage(_communityImage!) : null,
+                backgroundImage: _communityImage != null
+                    ? FileImage(_communityImage!)
+                    : null,
                 child: _communityImage == null
-                    ? const Icon(Icons.camera_alt, size: 40, color: Colors.white)
+                    ? const Icon(
+                        Icons.camera_alt,
+                        size: 40,
+                        color: Colors.white,
+                      )
                     : null,
               ),
             ),
@@ -193,46 +259,73 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Select Groups",
+                    "Select Participants",
                     style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.teal,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: groups.length,
-                      itemBuilder: (context, index) {
-                        final group = groups[index];
-                        final isSelected = selectedGroups.contains(group["name"]);
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: NetworkImage(group["img"]!),
-                          ),
-                          title: Text(group["name"]!),
-                          trailing: Checkbox(
-                            value: isSelected,
-                            onChanged: (value) {
-                              setState(() {
-                                if (value == true) {
-                                  selectedGroups.add(group["name"]!);
-                                } else {
-                                  selectedGroups.remove(group["name"]!);
-                                }
-                              });
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _loadError != null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(_loadError!),
+                                TextButton(
+                                  onPressed: _loadUsers,
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _users.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No other Voxa accounts to invite yet.',
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: _users.length,
+                            itemBuilder: (context, index) {
+                              final user = _users[index];
+                              final isSelected = selectedGroups.contains(
+                                user.id,
+                              );
+                              return ListTile(
+                                leading: const CircleAvatar(
+                                  child: Icon(Icons.person),
+                                ),
+                                title: Text(user.name),
+                                subtitle: Text(user.phone),
+                                trailing: Checkbox(
+                                  value: isSelected,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        selectedGroups.add(user.id);
+                                      } else {
+                                        selectedGroups.remove(user.id);
+                                      }
+                                    });
+                                  },
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      selectedGroups.remove(user.id);
+                                    } else {
+                                      selectedGroups.add(user.id);
+                                    }
+                                  });
+                                },
+                              );
                             },
                           ),
-                          onTap: () {
-                            setState(() {
-                              if (isSelected) {
-                                selectedGroups.remove(group["name"]!);
-                              } else {
-                                selectedGroups.add(group["name"]!);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
@@ -242,20 +335,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_nameController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Enter community name")),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            "Community '${_nameController.text}' created with ${selectedGroups.length} groups!"),
-                      ),
-                    );
-                  }
-                },
+                onPressed: _isCreating ? null : _createCommunity,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColor.tealGreen,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -263,10 +343,12 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  "Next",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
+                child: _isCreating
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        "Create Community",
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
               ),
             ),
           ],

@@ -1,14 +1,19 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/message_model.dart';
+import 'package:voxa/services/api_client.dart';
 import 'package:voxa/screens/videocallscreen.dart';
 import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class GroupChatPage extends StatefulWidget {
   final ChatModel group;
@@ -24,8 +29,103 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool showEmojiPicker = false;
 
   final List<MessageModel> messages = [];
+  WebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _subscription;
+  bool _isLoading = true;
+  String? _chatError;
 
   final ImagePicker _imagePicker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChat();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _focusNode.dispose();
+    _subscription?.cancel();
+    _channel?.sink.close();
+    super.dispose();
+  }
+
+  Future<void> _initializeChat() async {
+    final chatId = widget.group.id;
+    if (chatId == null) {
+      setState(() {
+        _isLoading = false;
+        _chatError = 'Open this group from your registered chats.';
+      });
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _chatError = null;
+    });
+    try {
+      _subscription?.cancel();
+      await _channel?.sink.close();
+      final channel = await ApiClient.instance.connectToChat(chatId);
+      _channel = channel;
+      _subscription = channel.stream.listen(
+        _handleSocketEvent,
+        onError: (Object _) {
+          if (mounted) setState(() => _chatError = 'Live connection lost.');
+        },
+        onDone: () {
+          if (mounted) setState(() => _chatError = 'Live connection closed.');
+        },
+      );
+      final history = await ApiClient.instance.loadMessages(chatId);
+      if (!mounted) return;
+      setState(() {
+        for (final message in history) {
+          if (!messages.any((item) => item.id == message.id)) {
+            messages.add(message);
+          }
+        }
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _chatError = error.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _chatError =
+              'Could not connect to this group. Check your connection.';
+        });
+      }
+    }
+  }
+
+  void _handleSocketEvent(dynamic event) {
+    try {
+      final decoded = jsonDecode(event as String) as Map<String, dynamic>;
+      if (decoded['type'] == 'message' &&
+          decoded['message'] is Map<String, dynamic>) {
+        final message = MessageModel.fromJson(
+          decoded['message'] as Map<String, dynamic>,
+        );
+        if (mounted && !messages.any((item) => item.id == message.id)) {
+          setState(() => messages.add(message));
+        }
+      } else if (decoded['type'] == 'error' && mounted) {
+        setState(() => _chatError = decoded['error'] as String?);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _chatError = 'Received an invalid chat event.');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,16 +150,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundImage: NetworkImage(
-          "https://i.pravatar.cc/150?img=10",
-            ),
+            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=10"),
           ),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.group.name ,
+                widget.group.name,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -108,64 +206,92 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _messageList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
-        final msg = messages[index];
-        return Align(
-          alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.all(14),
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            decoration: BoxDecoration(
-              gradient: msg.isMe
-                  ? const LinearGradient(
-                      colors: [Color(0xff25D366), Color(0xff128C7E)],
-                    )
-                  : null,
-              color: msg.isMe ? null : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!msg.isMe)
-                  Text(
-                    msg.sender,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xff075E54),
-                    ),
-                  ),
-                if (!msg.isMe) const SizedBox(height: 4),
-                Text(
-                  msg.message,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: msg.isMe ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text(
-                    msg.time,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: msg.isMe ? Colors.white70 : Colors.grey,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        if (_chatError != null)
+          MaterialBanner(
+            content: Text(_chatError!),
+            actions: [
+              TextButton(
+                onPressed: _initializeChat,
+                child: const Text('Retry'),
+              ),
+            ],
           ),
-        );
-      },
+        Expanded(
+          child: _isLoading && messages.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    return Align(
+                      alignment: msg.isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.all(14),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: msg.isMe
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xff25D366),
+                                    Color(0xff128C7E),
+                                  ],
+                                )
+                              : null,
+                          color: msg.isMe ? null : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!msg.isMe)
+                              Text(
+                                msg.sender,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xff075E54),
+                                ),
+                              ),
+                            if (!msg.isMe) const SizedBox(height: 4),
+                            Text(
+                              msg.message,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: msg.isMe ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                msg.time,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: msg.isMe
+                                      ? Colors.white70
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -310,7 +436,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 () async {
                   showModalBottomSheet(
                     context: context,
-                    builder: (_) => Container(
+                    builder: (_) => SizedBox(
                       height: 120,
                       child: Column(
                         children: [
@@ -322,8 +448,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final image = await _imagePicker.pickImage(
                                 source: ImageSource.camera,
                               );
-                              if (image != null)
+                              if (image != null) {
                                 print("Captured Image: ${image.path}");
+                              }
                             },
                           ),
                           ListTile(
@@ -334,8 +461,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final video = await _imagePicker.pickVideo(
                                 source: ImageSource.camera,
                               );
-                              if (video != null)
+                              if (video != null) {
                                 print("Captured Video: ${video.path}");
+                              }
                             },
                           ),
                         ],
@@ -348,32 +476,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
               _attachmentItem(Icons.photo, "Gallery", Colors.purple, () async {
                 showModalBottomSheet(
                   context: context,
-                  builder: (_) => Container(
+                  builder: (_) => SizedBox(
                     height: 120,
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.photo,color: Colors.deepOrange,),
+                          leading: const Icon(
+                            Icons.photo,
+                            color: Colors.deepOrange,
+                          ),
                           title: const Text("Image"),
                           onTap: () async {
                             Navigator.pop(context);
                             final image = await _imagePicker.pickImage(
                               source: ImageSource.gallery,
                             );
-                            if (image != null)
+                            if (image != null) {
                               print("Picked Image: ${image.path}");
+                            }
                           },
                         ),
                         ListTile(
-                          leading: const Icon(Icons.videocam,color: Colors.green,),
+                          leading: const Icon(
+                            Icons.videocam,
+                            color: Colors.green,
+                          ),
                           title: const Text("Video"),
                           onTap: () async {
                             Navigator.pop(context);
                             final video = await _imagePicker.pickVideo(
                               source: ImageSource.gallery,
                             );
-                            if (video != null)
+                            if (video != null) {
                               print("Picked Video: ${video.path}");
+                            }
                           },
                         ),
                       ],
@@ -395,8 +531,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.audio,
                   );
-                  if (result != null)
+                  if (result != null) {
                     print("Picked Audio: ${result.files.single.name}");
+                  }
                 },
               ),
               _attachmentItem(
@@ -490,17 +627,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-    setState(() {
-      messages.add(
-        MessageModel(
-          sender: "You",
-          message: _messageController.text,
-          time: TimeOfDay.now().format(context),
-          isMe: true,
+    final content = _messageController.text.trim();
+    final channel = _channel;
+    if (content.isEmpty) return;
+    if (channel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The live chat is not connected. Retry first.'),
         ),
       );
-      _messageController.clear();
-    });
+      return;
+    }
+    ApiClient.instance.sendMessage(channel, content);
+    _messageController.clear();
   }
 }

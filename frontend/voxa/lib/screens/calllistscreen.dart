@@ -5,6 +5,7 @@ import 'package:voxa/pages/contactpage.dart';
 import 'package:voxa/pages/individualpage.dart';
 import 'package:voxa/screens/videocallscreen.dart';
 import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/services/api_client.dart';
 
 class CallListScreen extends StatefulWidget {
   const CallListScreen({super.key});
@@ -14,41 +15,67 @@ class CallListScreen extends StatefulWidget {
 }
 
 class _CallListScreenState extends State<CallListScreen> {
-  final List<CallModel> calls = [
-    CallModel(
-      name: 'John',
-      avatar: 'https://i.pravatar.cc/150?img=1',
-      time: DateTime.now().subtract(const Duration(minutes: 10)),
-      type: CallType.incoming,
-      media: CallMedia.audio,
-    ),
-    CallModel(
-      name: 'Emma',
-      avatar: 'https://i.pravatar.cc/150?img=2',
-      time: DateTime.now().subtract(const Duration(hours: 2)),
-      type: CallType.outgoing,
-      media: CallMedia.video,
-    ),
-    CallModel(
-      name: 'Alex',
-      avatar: 'https://i.pravatar.cc/150?img=3',
-      time: DateTime.now().subtract(const Duration(days: 1)),
-      type: CallType.missed,
-      media: CallMedia.audio,
-    ),
-  ];
+  List<CallModel> calls = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCalls();
+  }
+
+  Future<void> _loadCalls() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      calls = await ApiClient.instance.loadCallHistory();
+    } on ApiException catch (error) {
+      _error = error.message;
+    } catch (_) {
+      _error = 'Could not load call history.';
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffE8F5F9),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: calls.length,
-        itemBuilder: (context, index) {
-          return _callTile(calls[index]);
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _loadCalls,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : calls.isEmpty
+          ? const Center(child: Text('No calls yet'))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: calls.length,
+              itemBuilder: (context, index) {
+                return _callTile(calls[index]);
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.deepOrangeAccent,
         elevation: 4,
@@ -207,20 +234,32 @@ class _CallListScreenState extends State<CallListScreen> {
 
   // ================= ACTIONS =================
 
-  void _startCall(CallModel call) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Starting ${call.media.name} call with ${call.name}'),
-      ),
-    );
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => call.media == CallMedia.audio
-            ? VoiceCallScreen(callerName: call.name, callerAvatar: call.avatar)
-            : VideoCallScreen(callerName: call.name, callerAvatar: call.avatar),
-      ),
-    );
+  void _startCall(CallModel call) async {
+    try {
+      final created = await ApiClient.instance.createCall(
+        peerId: call.peerId ?? call.id,
+        media: call.media,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Starting ${call.media.name} call with ${call.name}'),
+        ),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => created.media == CallMedia.audio
+              ? VoiceCallScreen(callerName: call.name, callerAvatar: call.avatar)
+              : VideoCallScreen(callerName: call.name, callerAvatar: call.avatar),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
   }
 
   void _showCallDetails(CallModel call) {

@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/colors/colors.dart';
+import 'package:voxa/model/chatmodel.dart';
+import 'package:voxa/model/user_model.dart';
+import 'package:voxa/services/api_client.dart';
 
 class AddNewGroup extends StatefulWidget {
-  final List<String> members;
+  final List<UserModel> members;
 
   const AddNewGroup({
     super.key,
@@ -17,7 +20,47 @@ class AddNewGroup extends StatefulWidget {
 
 class _AddNewGroupState extends State<AddNewGroup> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _nameController = TextEditingController();
   File? _groupImage;
+  bool _isCreating = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createGroup() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a group name.')),
+      );
+      return;
+    }
+    setState(() => _isCreating = true);
+    try {
+      final group = await ApiClient.instance.createGroup(
+        name: name,
+        members: widget.members.map((member) => member.id).toList(),
+      );
+      if (mounted) Navigator.pop<ChatModel>(context, group);
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not create group. Check your connection.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
+    }
+  }
 
   /// WhatsApp-like states
   String disappearingMessage = "Off";
@@ -249,8 +292,10 @@ class _AddNewGroupState extends State<AddNewGroup> {
 
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColor.dartTealGreen,
-        onPressed: () {},
-        child: const Icon(Icons.check, color: Colors.white),
+        onPressed: _isCreating ? null : _createGroup,
+        child: _isCreating
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Icon(Icons.check, color: Colors.white),
       ),
 
       body: Padding(
@@ -275,6 +320,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
+                    controller: _nameController,
                     decoration: InputDecoration(
                       hintText: "Group name",
                       enabledBorder: OutlineInputBorder(
@@ -337,10 +383,10 @@ class _AddNewGroupState extends State<AddNewGroup> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: widget.members.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const SizedBox(width: 16),
                 itemBuilder: (context, index) {
-                  return _MemberAvatar(name: widget.members[index]);
+                  return _MemberAvatar(name: widget.members[index].name);
                 },
               ),
             ),

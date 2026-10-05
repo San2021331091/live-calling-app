@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voxa/colors/colors.dart';
 import 'package:voxa/pages/createnewcommunity.dart';
-
+import 'package:voxa/model/chatmodel.dart';
 
 class CreateNewCommunity extends StatefulWidget {
   const CreateNewCommunity({super.key});
@@ -33,6 +33,16 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
       'color': Colors.purpleAccent,
     },
   ];
+
+  Future<void> _openCommunityInfo(String type) async {
+    final community = await Navigator.push<ChatModel>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddCommunityInfo(communityType: type),
+      ),
+    );
+    if (community != null && mounted) Navigator.pop(context, community);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,14 +86,7 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
                   final type = communityTypes[index];
                   return GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddCommunityInfo(
-                            communityType: type['name'],
-                          ),
-                        ),
-                      );
+                      _openCommunityInfo(type['name'] as String);
                     },
                     child: Container(
                       decoration: BoxDecoration(

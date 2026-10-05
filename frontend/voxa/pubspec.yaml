@@ -47,6 +47,9 @@ dependencies:
   mime: ^2.0.0
   camera_android_camerax: ^0.6.8
   country_code_picker: ^3.4.1
+  http: ^1.6.0
+  web_socket_channel: ^3.0.3
+  flutter_secure_storage: ^10.3.4
 
 
 dev_dependencies:
