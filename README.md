@@ -30,12 +30,19 @@ Start the backend first. From a second terminal, run:
 
 ```powershell
 Set-Location frontend\voxa
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+flutter run
 ```
 
-`10.0.2.2` is the Android emulator address for the host machine. For a physical device, replace it with the computer's LAN address, for example `http://192.168.1.20:8080`. For Flutter Web or desktop, use the address where the backend is reachable, commonly `http://localhost:8080`.
+The frontend reads `API_BASE_URL` from `frontend/voxa/.env`. That local file is ignored by Git; `.env.example` is the committed template. `10.0.2.2` is the Android emulator address for the host machine. For a physical device, edit `.env` to use the computer's LAN address, for example `http://192.168.1.20:8080`. For Flutter Web or desktop, use the backend's reachable address, commonly `http://localhost:8080`.
 
 The debug Android manifest permits local cleartext HTTP for development. Configure HTTPS for deployed builds; do not expose the development API over an untrusted network. Set `CORS_ORIGINS` to a comma-separated list of trusted web app origins when deploying.
+
+## One-to-one audio and video calls
+
+Direct audio and video calls use Flutter WebRTC. The backend creates call records, delivers SDP/ICE signals to the other participant, and polls for incoming calls while the app is open. Apply the database migrations by restarting the backend. Group calls are not supported; they require a media-server/SFU architecture.
+
+The client uses Google's public STUN servers by default. These servers help peers discover network routes at no extra setup, but STUN alone cannot guarantee calls through symmetric NATs, carrier-grade NATs, or restrictive firewalls. For reliable calls across those networks, a TURN relay is required; configure a TURN service such as coturn with shared-secret authentication. Set comma-separated `TURN_URLS` (for example, `turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349`) and a random `TURN_SHARED_SECRET` of at least 32 characters in `backend/.env`. Configure coturn with the same shared secret. The backend issues short-lived TURN credentials to authenticated clients; do not put TURN shared secrets or permanent TURN credentials in the Flutter `.env`.
 
 ## Authentication and messaging
 

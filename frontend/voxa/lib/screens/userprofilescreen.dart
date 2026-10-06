@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/model/call_model.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/individualpage.dart';
-import 'package:voxa/screens/videocallscreen.dart';
-import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/screens/webrtc_call_screen.dart';
+import 'package:voxa/services/api_client.dart';
 
 class UserProfileScreen extends StatelessWidget {
   final String name;
@@ -112,26 +113,10 @@ class UserProfileScreen extends StatelessWidget {
                   );
                 }),
                 _actionButton(Icons.call, "Call", Colors.green, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => VoiceCallScreen(
-                        callerName: name,
-                        callerAvatar: imageUrl!,
-                      ),
-                    ),
-                  );
+                  _startCall(context, CallMedia.audio);
                 }),
                 _actionButton(Icons.videocam, "Video", Colors.blue, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => VideoCallScreen(
-                        callerName: name,
-                        callerAvatar: imageUrl!,
-                      ),
-                    ),
-                  );
+                  _startCall(context, CallMedia.video);
                 }),
               ],
             ),
@@ -153,6 +138,40 @@ class UserProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _startCall(BuildContext context, CallMedia media) async {
+    try {
+      final chat = await ApiClient.instance.createDirectChat(phone: phone);
+      final peerId = chat.peerId;
+      if (peerId == null || peerId.isEmpty) {
+        throw const ApiException('This contact is not a registered Voxa user.');
+      }
+      final call = await ApiClient.instance.createCall(
+        peerId: peerId,
+        media: media,
+      );
+      if (!context.mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WebRtcCallScreen(
+            callId: call.id,
+            peerId: peerId,
+            peerName: name,
+            peerAvatar: imageUrl ?? '',
+            media: media,
+            isIncoming: false,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
   }
 
   Widget _actionButton(

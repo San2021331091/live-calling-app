@@ -56,13 +56,14 @@ class _CapturePhotoState extends State<CapturePhoto> {
   }
 
   /// Open captured image
-  void _openImage(File file) {
-    Navigator.pushReplacement(
+  Future<void> _openImage(File file) async {
+    final result = await Navigator.push<MediaResult>(
       context,
       MaterialPageRoute(
         builder: (_) => EditImage(file: file),
       ),
     );
+    if (mounted && result != null) Navigator.pop(context, result);
   }
 
   /// 📸 Take photo

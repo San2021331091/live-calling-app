@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:voxa/screens/splashscreen.dart';
 
-
-void main() { //entry point of the main application.
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
 
@@ -13,14 +15,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: "Poppins",
-        useMaterial3: true 
-      ),
+      theme: ThemeData(fontFamily: "Poppins", useMaterial3: true),
 
-      home : const SplashScreen(),
-  
-      
+      home: const SplashScreen(),
     );
   }
 }

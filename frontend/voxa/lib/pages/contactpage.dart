@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:voxa/model/call_model.dart';
 import 'package:voxa/pages/individualpage.dart';
-import 'package:voxa/screens/videocallscreen.dart';
-import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/screens/webrtc_call_screen.dart';
 import 'package:voxa/services/api_client.dart';
 
 class ContactPage extends StatefulWidget {
@@ -68,6 +68,40 @@ class _ContactPageState extends State<ContactPage> {
     }
   }
 
+  Future<void> _startCall(Contact contact, CallMedia media) async {
+    if (contact.phones.isEmpty) {
+      _showError('This contact does not have a phone number.');
+      return;
+    }
+    try {
+      final chat = await ApiClient.instance.createDirectChat(
+        phone: contact.phones.first.number,
+      );
+      final peerId = chat.peerId;
+      if (peerId == null || peerId.isEmpty) {
+        _showError('This contact is not a registered Voxa user.');
+        return;
+      }
+      final call = await ApiClient.instance.createCall(peerId: peerId, media: media);
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WebRtcCallScreen(
+            callId: call.id,
+            peerId: peerId,
+            peerName: contact.displayName,
+            peerAvatar: '',
+            media: media,
+            isIncoming: false,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -107,31 +141,11 @@ class _ContactPageState extends State<ContactPage> {
           ),
           IconButton(
             icon: const Icon(Icons.call, color: Colors.blue),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => VoiceCallScreen(
-                    callerName: contact.displayName,
-                    callerAvatar: "https://i.pravatar.cc/150?img=1",
-                  ),
-                ),
-              );
-            },
+            onPressed: () => _startCall(contact, CallMedia.audio),
           ),
           IconButton(
             icon: const Icon(Icons.videocam, color: Colors.purple),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => VideoCallScreen(
-                    callerName: contact.displayName,
-                    callerAvatar: "https://i.pravatar.cc/150?img=1",
-                  ),
-                ),
-              );
-            },
+            onPressed: () => _startCall(contact, CallMedia.video),
           ),
         ],
       ),

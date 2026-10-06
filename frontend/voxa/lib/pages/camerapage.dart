@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/screens/capturephoto.dart';
+import 'package:voxa/media/media_result.dart';
 
 
 
@@ -29,14 +30,17 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> _initCamera() async {
+    try {
     cameras = await availableCameras();
+    if (cameras!.isEmpty) throw CameraException('no_camera', 'No camera is available');
     _controller = CameraController(
       cameras![selectedCameraIndex],
       ResolutionPreset.high,
       enableAudio: false,
     );
     await _controller!.initialize();
-    setState(() {});
+    if (mounted) setState(() {});
+    } catch (_) { if (mounted) setState(() {}); }
   }
 
   /// -------- GALLERY --------
@@ -46,19 +50,21 @@ class _CameraPageState extends State<CameraPage> {
 
     if (image == null || !mounted) return;
 
-    Navigator.push(
+    final result = await Navigator.push<MediaResult>(
       context,
       MaterialPageRoute(
         builder: (_) => CapturePhoto(file: File(image.path)),
       ),
     );
+    if (result != null && mounted) Navigator.pop(context, result);
   }
 
   /// -------- CAMERA CONTROLS --------
   Future<void> _switchCamera() async {
+    if ((cameras?.length ?? 0) < 2) return;
     selectedCameraIndex = selectedCameraIndex == 0 ? 1 : 0;
     await _controller?.dispose();
-    _initCamera();
+    await _initCamera();
   }
 
   Future<void> _toggleFlash() async {
@@ -75,12 +81,19 @@ class _CameraPageState extends State<CameraPage> {
 
     if (!mounted) return;
 
-    Navigator.push(
+    final result = await Navigator.push<MediaResult>(
       context,
       MaterialPageRoute(
         builder: (_) => CapturePhoto(file: File(file.path)),
       ),
     );
+    if (result != null && mounted) Navigator.pop(context, result);
+  }
+
+  Future<void> _captureVideo() async {
+    final video = await _picker.pickVideo(source: ImageSource.camera, maxDuration: const Duration(seconds: 60));
+    if (video == null || !mounted) return;
+    Navigator.pop(context, MediaResult(file: File(video.path), isVideo: true, caption: ''));
   }
 
   @override
@@ -94,7 +107,7 @@ class _CameraPageState extends State<CameraPage> {
     if (_controller == null || !_controller!.value.isInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: Text('Camera unavailable. Check camera permission.', style: TextStyle(color: Colors.white))),
       );
     }
 
@@ -149,6 +162,8 @@ class _CameraPageState extends State<CameraPage> {
                     ),
                   ),
                 ),
+
+                _circleButton(Icons.videocam, _captureVideo),
 
                 _circleButton(Icons.cameraswitch, _switchCamera),
               ],

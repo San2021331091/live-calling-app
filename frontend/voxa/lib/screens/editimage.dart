@@ -69,7 +69,17 @@ class _EditImageState extends State<EditImage> {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final image = await decodeImageFromList(widget.file.readAsBytesSync());
-    canvas.drawImage(image, Offset.zero, Paint());
+    final swapsAxes = rotationAngle.abs() % (2 * pi) > pi / 4 &&
+        rotationAngle.abs() % (2 * pi) < 3 * pi / 4 ||
+        rotationAngle.abs() % (2 * pi) > 5 * pi / 4 &&
+        rotationAngle.abs() % (2 * pi) < 7 * pi / 4;
+    final outputWidth = swapsAxes ? image.height : image.width;
+    final outputHeight = swapsAxes ? image.width : image.height;
+    canvas
+      ..translate(outputWidth / 2, outputHeight / 2)
+      ..rotate(rotationAngle)
+      ..translate(-image.width / 2, -image.height / 2)
+      ..drawImage(image, Offset.zero, Paint());
 
     // Draw points
     final paint = Paint()
@@ -93,7 +103,7 @@ class _EditImageState extends State<EditImage> {
     }
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(image.width, image.height);
+    final img = await picture.toImage(outputWidth, outputHeight);
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     final newFile = File('${widget.file.path}_edited.png');
     await newFile.writeAsBytes(bytes!.buffer.asUint8List());

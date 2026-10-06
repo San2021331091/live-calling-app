@@ -1,12 +1,14 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:voxa/model/call_model.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/message_model.dart';
 import 'package:voxa/model/user_model.dart';
+import 'package:voxa/status/statusmodel.dart';
 import 'package:voxa/services/web_socket_connector.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -28,17 +30,27 @@ class ApiClient {
   static const _tokenKey = 'access_token';
   static const _userIdKey = 'user_id';
   static const _userNameKey = 'user_name';
-  static const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+  static final Dio _dio = Dio(
+    BaseOptions(
+      contentType: Headers.jsonContentType,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      validateStatus: (status) => status != null,
+    ),
+  );
 
   Uri get _baseUri {
-    final value = _configuredBaseUrl.isNotEmpty
-        ? _configuredBaseUrl
+    final configuredBaseUrl = dotenv.env['API_BASE_URL']?.trim() ?? '';
+    final value = configuredBaseUrl.isNotEmpty
+        ? configuredBaseUrl
         : kIsWeb
         ? 'http://localhost:8080'
         : 'http://10.0.2.2:8080';
     final uri = Uri.parse(value);
     if (uri.host.isEmpty || !{'http', 'https'}.contains(uri.scheme)) {
-      throw const ApiException('API_BASE_URL must be an absolute HTTP or HTTPS URL');
+      throw const ApiException(
+        'API_BASE_URL must be an absolute HTTP or HTTPS URL',
+      );
     }
     return uri;
   }
@@ -56,24 +68,22 @@ class ApiClient {
     required String phone,
     required String password,
   }) async {
-    await _authenticate(
-      'api/auth/register',
-      {'name': name, 'phone': phone, 'password': password},
-    );
+    await _authenticate('api/auth/register', {
+      'name': name,
+      'phone': phone,
+      'password': password,
+    });
   }
 
-  Future<void> login({
-    required String phone,
-    required String password,
-  }) async {
-    await _authenticate(
-      'api/auth/login',
-      {'phone': phone, 'password': password},
-    );
+  Future<void> login({required String phone, required String password}) async {
+    await _authenticate('api/auth/login', {
+      'phone': phone,
+      'password': password,
+    });
   }
 
   Future<void> _authenticate(String path, Map<String, String> body) async {
-    final response = await http.post(
+    final response = await _post(
       _baseUri.resolve(path),
       headers: const {'Content-Type': 'application/json'},
       body: jsonEncode(body),
@@ -82,7 +92,9 @@ class ApiClient {
     final token = result['access_token'] as String?;
     final user = result['user'];
     if (token == null || user is! Map<String, dynamic>) {
-      throw const ApiException('The server returned an invalid sign-in response');
+      throw const ApiException(
+        'The server returned an invalid sign-in response',
+      );
     }
     final authenticatedUser = UserModel.fromJson(user);
     await _storage.write(key: _tokenKey, value: token);
@@ -104,9 +116,9 @@ class ApiClient {
   }
 
   Future<List<UserModel>> loadUsers({String query = ''}) async {
-    final uri = _baseUri.resolve('api/users').replace(
-      queryParameters: query.isEmpty ? null : {'query': query},
-    );
+    final uri = _baseUri
+        .resolve('api/users')
+        .replace(queryParameters: query.isEmpty ? null : {'query': query});
     final result = await _request(uri);
     final users = result['users'];
     if (users is! List) {
@@ -172,17 +184,53 @@ class ApiClient {
     );
     final messages = result['messages'];
     if (messages is! List) {
-      throw const ApiException('The server returned an invalid messages response');
+      throw const ApiException(
+        'The server returned an invalid messages response',
+      );
     }
     return messages
         .map((item) => MessageModel.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
+  Future<List<StatusModel>> loadStatuses() async {
+    final result = await _request(_baseUri.resolve('api/statuses'));
+    final statuses = result['statuses'];
+    if (statuses is! List) {
+      throw const ApiException('The server returned an invalid statuses response');
+    }
+    return statuses
+        .map((item) => StatusModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> markStatusViewed(String statusId) async {
+    await _request(
+      _baseUri.resolve('api/statuses/$statusId/view'),
+      method: 'POST',
+      body: const {},
+    );
+  }
+
+  Future<StatusModel> createStatus({
+    required String image,
+    required bool isVideo,
+    String caption = '',
+  }) async {
+    final result = await _request(
+      _baseUri.resolve('api/statuses'),
+      method: 'POST',
+      body: {'image': image, 'is_video': isVideo, 'caption': caption},
+    );
+    return StatusModel.fromJson(result);
+  }
+
   Future<WebSocketChannel> connectToChat(String chatId) async {
     final token = await _token;
     if (token == null || token.isEmpty) {
-      throw const ApiException('Your session has expired. Please sign in again.');
+      throw const ApiException(
+        'Your session has expired. Please sign in again.',
+      );
     }
     final base = _baseUri;
     final uri = base.replace(
@@ -203,11 +251,18 @@ class ApiClient {
     final result = await _request(_baseUri.resolve('api/calls'));
     final calls = result['calls'];
     if (calls is! List) {
-      throw const ApiException('The server returned an invalid call history response');
+      throw const ApiException(
+        'The server returned an invalid call history response',
+      );
     }
     final currentUserId = await _loadStoredUserId();
     return calls
-        .map((item) => CallModel.fromJson(item as Map<String, dynamic>, currentUserId: currentUserId))
+        .map(
+          (item) => CallModel.fromJson(
+            item as Map<String, dynamic>,
+            currentUserId: currentUserId,
+          ),
+        )
         .toList();
   }
 
@@ -227,6 +282,64 @@ class ApiClient {
     );
     final userId = await _loadStoredUserId();
     return CallModel.fromJson(result, currentUserId: userId);
+  }
+
+  Future<List<CallModel>> loadIncomingCalls() async {
+    final result = await _request(_baseUri.resolve('api/calls/incoming'));
+    final calls = result['calls'];
+    if (calls is! List) {
+      throw const ApiException(
+        'The server returned an invalid incoming calls response',
+      );
+    }
+    final currentUserId = await _loadStoredUserId();
+    return calls
+        .map(
+          (item) => CallModel.fromJson(
+            item as Map<String, dynamic>,
+            currentUserId: currentUserId,
+          ),
+        )
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> loadCallSignals({
+    required String callId,
+    required int afterSequence,
+  }) async {
+    final uri = _baseUri
+        .resolve('api/calls/$callId/signals')
+        .replace(queryParameters: {'after': '$afterSequence'});
+    final result = await _request(uri);
+    final signals = result['signals'];
+    if (signals is! List) {
+      throw const ApiException(
+        'The server returned an invalid call signals response',
+      );
+    }
+    return {
+      'status': result['status'] as String? ?? 'ended',
+      'signals': signals.cast<Map<String, dynamic>>(),
+    };
+  }
+
+  Future<void> endCall(String callId, {bool missed = false}) async {
+    await _request(
+      _baseUri.resolve('api/calls/$callId/end'),
+      method: 'POST',
+      body: {'status': missed ? 'missed' : 'ended'},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> loadCallIceServers() async {
+    final result = await _request(_baseUri.resolve('api/calls/ice-config'));
+    final servers = result['ice_servers'];
+    if (servers is! List) {
+      throw const ApiException(
+        'The server returned invalid WebRTC configuration',
+      );
+    }
+    return servers.cast<Map<String, dynamic>>();
   }
 
   Future<Map<String, dynamic>> signalCall({
@@ -259,10 +372,12 @@ class ApiClient {
   }) async {
     final token = await _token;
     if (token == null || token.isEmpty) {
-      throw const ApiException('Your session has expired. Please sign in again.');
+      throw const ApiException(
+        'Your session has expired. Please sign in again.',
+      );
     }
     final response = await switch (method) {
-      'POST' => http.post(
+      'POST' => _post(
         uri,
         headers: {
           'Authorization': 'Bearer $token',
@@ -270,28 +385,68 @@ class ApiClient {
         },
         body: jsonEncode(body),
       ),
-      _ => http.get(uri, headers: {'Authorization': 'Bearer $token'}),
+      _ => _get(uri, headers: {'Authorization': 'Bearer $token'}),
     };
     return _decodeResponse(response);
   }
 
-  Map<String, dynamic> _decodeResponse(http.Response response) {
-    Object? decoded;
+  Future<Response<dynamic>> _post(
+    Uri uri, {
+    required Map<String, String> headers,
+    required String body,
+  }) {
+    return _sendRequest(
+      () => _dio.postUri<dynamic>(
+        uri,
+        data: jsonDecode(body),
+        options: Options(headers: headers),
+      ),
+    );
+  }
+
+  Future<Response<dynamic>> _get(
+    Uri uri, {
+    required Map<String, String> headers,
+  }) {
+    return _sendRequest(
+      () => _dio.getUri<dynamic>(uri, options: Options(headers: headers)),
+    );
+  }
+
+  Future<Response<dynamic>> _sendRequest(
+    Future<Response<dynamic>> Function() request,
+  ) async {
     try {
-      decoded = jsonDecode(response.body);
-    } on FormatException {
+      return await request();
+    } on DioException catch (error) {
       throw ApiException(
-        'The server returned an invalid response (${response.statusCode})',
+        error.message ?? 'Could not connect to the backend API',
       );
+    }
+  }
+
+  Map<String, dynamic> _decodeResponse(Response<dynamic> response) {
+    Object? decoded;
+    if (response.data is String) {
+      try {
+        decoded = jsonDecode(response.data as String);
+      } on FormatException {
+        throw ApiException(
+          'The server returned an invalid response (${response.statusCode})',
+        );
+      }
+    } else {
+      decoded = response.data;
     }
     if (decoded is! Map<String, dynamic>) {
       throw ApiException(
         'The server returned an invalid response (${response.statusCode})',
       );
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+    final statusCode = response.statusCode ?? 0;
+    if (statusCode < 200 || statusCode >= 300) {
       throw ApiException(
-        decoded['error'] as String? ?? 'Request failed (${response.statusCode})',
+        decoded['error'] as String? ?? 'Request failed ($statusCode)',
       );
     }
     return decoded;

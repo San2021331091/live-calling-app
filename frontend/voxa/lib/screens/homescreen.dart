@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:voxa/pages/camerapage.dart';
 import 'package:voxa/pages/chatpage.dart';
@@ -9,6 +11,8 @@ import 'package:voxa/screens/creategroup.dart';
 import 'package:voxa/screens/myprofilescreen.dart';
 import 'package:voxa/screens/searchscreen.dart';
 import 'package:voxa/screens/status_screen.dart';
+import 'package:voxa/model/call_model.dart';
+import 'package:voxa/screens/webrtc_call_screen.dart';
 import 'package:voxa/screens/loginscreen.dart';
 import 'package:voxa/services/api_client.dart';
 
@@ -24,17 +28,102 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController tabController;
+  Timer? _incomingCallTimer;
+  final Set<String> _seenIncomingCallIds = {};
+  bool _checkingIncomingCalls = false;
+  bool _showingIncomingDialog = false;
+  bool _incomingErrorShown = false;
 
   @override
   void initState() {
     super.initState();
     tabController = TabController(length: 4, vsync: this);
+    _incomingCallTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_checkIncomingCalls()),
+    );
+    unawaited(_checkIncomingCalls());
   }
 
   @override
   void dispose() {
+    _incomingCallTimer?.cancel();
     tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkIncomingCalls() async {
+    if (_checkingIncomingCalls || _showingIncomingDialog) return;
+    _checkingIncomingCalls = true;
+    try {
+      final calls = await ApiClient.instance.loadIncomingCalls();
+      _incomingErrorShown = false;
+      for (final call in calls) {
+        if (_seenIncomingCallIds.contains(call.id)) continue;
+        _seenIncomingCallIds.add(call.id);
+        if (!mounted) return;
+        await _promptForCall(call);
+        break;
+      }
+    } on ApiException catch (error) {
+      if (mounted && !_incomingErrorShown) {
+        _incomingErrorShown = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Incoming call check failed: ${error.message}')),
+        );
+      }
+    } finally {
+      _checkingIncomingCalls = false;
+    }
+  }
+
+  Future<void> _promptForCall(CallModel call) async {
+    _showingIncomingDialog = true;
+    final navigator = Navigator.of(context);
+    final accept = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Incoming ${call.media.name} call'),
+        content: Text('${call.name} is calling you.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+    _showingIncomingDialog = false;
+    if (!mounted) return;
+    if (accept == true) {
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => WebRtcCallScreen(
+            callId: call.id,
+            peerId: call.peerId ?? '',
+            peerName: call.name,
+            peerAvatar: call.avatar,
+            media: call.media,
+            isIncoming: true,
+          ),
+        ),
+      );
+    } else {
+      try {
+        await ApiClient.instance.endCall(call.id, missed: true);
+      } on ApiException catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not decline call: ${error.message}')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -145,9 +234,10 @@ class HomeScreenState extends State<HomeScreen>
                               style: TextStyle(color: Colors.white),
                             ),
                             onTap: () async {
+                              final navigator = Navigator.of(context);
                               await ApiClient.instance.signOut();
                               if (!mounted) return;
-                              Navigator.of(context).pushAndRemoveUntil(
+                              navigator.pushAndRemoveUntil(
                                 MaterialPageRoute(
                                   builder: (_) => const LoginScreen(),
                                 ),

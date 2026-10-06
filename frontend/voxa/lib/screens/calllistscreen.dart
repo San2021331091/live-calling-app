@@ -3,8 +3,7 @@ import 'package:voxa/model/call_model.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/contactpage.dart';
 import 'package:voxa/pages/individualpage.dart';
-import 'package:voxa/screens/videocallscreen.dart';
-import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/screens/webrtc_call_screen.dart';
 import 'package:voxa/services/api_client.dart';
 
 class CallListScreen extends StatefulWidget {
@@ -234,26 +233,33 @@ class _CallListScreenState extends State<CallListScreen> {
 
   // ================= ACTIONS =================
 
-  void _startCall(CallModel call) async {
+  void _startCall(CallModel call, {CallMedia? media}) async {
+    final selectedMedia = media ?? call.media;
     try {
       final created = await ApiClient.instance.createCall(
         peerId: call.peerId ?? call.id,
-        media: call.media,
+        media: selectedMedia,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Starting ${call.media.name} call with ${call.name}'),
+          content: Text('Starting ${selectedMedia.name} call with ${call.name}'),
         ),
       );
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => created.media == CallMedia.audio
-              ? VoiceCallScreen(callerName: call.name, callerAvatar: call.avatar)
-              : VideoCallScreen(callerName: call.name, callerAvatar: call.avatar),
+          builder: (_) => WebRtcCallScreen(
+            callId: created.id,
+            peerId: call.peerId ?? '',
+            peerName: call.name,
+            peerAvatar: call.avatar,
+            media: selectedMedia,
+            isIncoming: false,
+          ),
         ),
       );
+      if (mounted) await _loadCalls();
     } on ApiException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -300,12 +306,12 @@ class _CallListScreenState extends State<CallListScreen> {
                 children: [
                   _actionIcon(
                     Icons.call,
-                    () => _startCall(call),
+                    () => _startCall(call, media: CallMedia.audio),
                     Colors.greenAccent,
                   ),
                   _actionIcon(
                     Icons.videocam,
-                    () => _startCall(call),
+                    () => _startCall(call, media: CallMedia.video),
                     Colors.orangeAccent,
                   ),
 

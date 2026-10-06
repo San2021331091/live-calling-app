@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,8 +12,8 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/message_model.dart';
 import 'package:voxa/services/api_client.dart';
-import 'package:voxa/screens/videocallscreen.dart';
-import 'package:voxa/screens/voicecallscreen.dart';
+import 'package:voxa/services/media_upload_service.dart';
+import 'package:voxa/pages/media_preview.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class GroupChatPage extends StatefulWidget {
@@ -174,34 +175,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
       ),
       actions: [
         IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => VideoCallScreen(
-                  callerName: widget.group.name,
-                  callerAvatar: "https://i.pravatar.cc/150?img=1",
-                ),
-              ),
-            );
-          },
+          onPressed: _showGroupCallsUnavailable,
           icon: const Icon(Icons.videocam, color: Colors.white),
         ),
         IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => VoiceCallScreen(
-                  callerName: widget.group.name,
-                  callerAvatar: "https://i.pravatar.cc/150?img=1",
-                ),
-              ),
-            );
-          },
+          onPressed: _showGroupCallsUnavailable,
           icon: const Icon(Icons.call, color: Colors.white),
         ),
       ],
+    );
+  }
+
+  void _showGroupCallsUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Group calling is not supported yet; calls currently use peer-to-peer WebRTC.',
+        ),
+      ),
     );
   }
 
@@ -264,13 +255,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 ),
                               ),
                             if (!msg.isMe) const SizedBox(height: 4),
-                            Text(
-                              msg.message,
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: msg.isMe ? Colors.white : Colors.black87,
-                              ),
-                            ),
+                            _messageContent(msg),
                             const SizedBox(height: 6),
                             Align(
                               alignment: Alignment.bottomRight,
@@ -424,9 +409,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     type: FileType.custom,
                     allowedExtensions: ['pdf', 'doc', 'docx', 'zip'],
                   );
-                  if (result != null) {
-                    print("Picked Document: ${result.files.single.name}");
-                  }
+                  if (result != null && result.files.single.path != null) await _uploadAndSend(File(result.files.single.path!), 'document', result.files.single.name);
                 },
               ),
               _attachmentItem(
@@ -448,9 +431,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final image = await _imagePicker.pickImage(
                                 source: ImageSource.camera,
                               );
-                              if (image != null) {
-                                print("Captured Image: ${image.path}");
-                              }
+                              if (image != null) await _uploadAndSend(File(image.path), 'image', image.name);
                             },
                           ),
                           ListTile(
@@ -461,9 +442,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final video = await _imagePicker.pickVideo(
                                 source: ImageSource.camera,
                               );
-                              if (video != null) {
-                                print("Captured Video: ${video.path}");
-                              }
+                              if (video != null) await _uploadAndSend(File(video.path), 'video', video.name);
                             },
                           ),
                         ],
@@ -491,9 +470,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             final image = await _imagePicker.pickImage(
                               source: ImageSource.gallery,
                             );
-                            if (image != null) {
-                              print("Picked Image: ${image.path}");
-                            }
+                            if (image != null) await _uploadAndSend(File(image.path), 'image', image.name);
                           },
                         ),
                         ListTile(
@@ -507,9 +484,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             final video = await _imagePicker.pickVideo(
                               source: ImageSource.gallery,
                             );
-                            if (video != null) {
-                              print("Picked Video: ${video.path}");
-                            }
+                            if (video != null) await _uploadAndSend(File(video.path), 'video', video.name);
                           },
                         ),
                       ],
@@ -531,9 +506,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.audio,
                   );
-                  if (result != null) {
-                    print("Picked Audio: ${result.files.single.name}");
-                  }
+                  final file = result?.files.single;
+                  if (file != null && file.path != null) await _uploadAndSend(File(file.path!), 'audio', file.name);
                 },
               ),
               _attachmentItem(
@@ -624,6 +598,34 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ],
       ),
     );
+  }
+
+  Widget _messageContent(MessageModel message) {
+    if (message.mediaUrl == null) return Text(message.message, style: TextStyle(fontSize: 15, color: message.isMe ? Colors.white : Colors.black87));
+    if (message.mediaType == 'image') return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(message.mediaUrl!, width: 220, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image))),
+      if (message.message.isNotEmpty && message.message != 'Image') Text(message.message),
+    ]);
+    return InkWell(onTap: () {
+      if (message.mediaType == 'video') {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => MediaPreview(url: message.mediaUrl!)));
+      } else {
+        showDialog<void>(context: context, builder: (_) => AlertDialog(title: Text(message.mediaName ?? 'Attachment'), content: SelectableText(message.mediaUrl!)));
+      }
+    }, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file), const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message))]));
+  }
+
+  Future<void> _uploadAndSend(File file, String type, String name) async {
+    final channel = _channel;
+    if (channel == null) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chat is not connected.'))); return; }
+    try {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uploading attachment…')));
+      final url = await MediaUploadService.upload(file, isVideo: type != 'image');
+      await ApiClient.instance.sendMessage(channel, jsonEncode({'_voxa_media': true, 'url': url, 'type': type, 'name': name, 'caption': ''}));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Attachment failed: $error')));
+    }
   }
 
   void _sendMessage() {
