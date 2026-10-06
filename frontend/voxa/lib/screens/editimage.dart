@@ -48,12 +48,14 @@ class _EditImageState extends State<EditImage> {
           TextButton(
             onPressed: () {
               if (controller.text.isNotEmpty) {
-                texts.add(_TextInfo(
-                  text: controller.text,
-                  offset: Offset(80, 80),
-                  color: textColor,
-                  size: textSize,
-                ));
+                texts.add(
+                  _TextInfo(
+                    text: controller.text,
+                    offset: Offset(80, 80),
+                    color: textColor,
+                    size: textSize,
+                  ),
+                );
               }
               Navigator.pop(context);
             },
@@ -69,10 +71,11 @@ class _EditImageState extends State<EditImage> {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final image = await decodeImageFromList(widget.file.readAsBytesSync());
-    final swapsAxes = rotationAngle.abs() % (2 * pi) > pi / 4 &&
-        rotationAngle.abs() % (2 * pi) < 3 * pi / 4 ||
+    final swapsAxes =
+        rotationAngle.abs() % (2 * pi) > pi / 4 &&
+            rotationAngle.abs() % (2 * pi) < 3 * pi / 4 ||
         rotationAngle.abs() % (2 * pi) > 5 * pi / 4 &&
-        rotationAngle.abs() % (2 * pi) < 7 * pi / 4;
+            rotationAngle.abs() % (2 * pi) < 7 * pi / 4;
     final outputWidth = swapsAxes ? image.height : image.width;
     final outputHeight = swapsAxes ? image.width : image.height;
     canvas
@@ -87,7 +90,7 @@ class _EditImageState extends State<EditImage> {
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
     for (int i = 0; i < points.length - 1; i++) {
-      if (points [i] != null && points[i + 1] != null) {
+      if (points[i] != null && points[i + 1] != null) {
         canvas.drawLine(points[i]!, points[i + 1]!, paint);
       }
     }
@@ -95,7 +98,10 @@ class _EditImageState extends State<EditImage> {
     // Draw texts
     for (var t in texts) {
       final textPainter = TextPainter(
-        text: TextSpan(text: t.text, style: TextStyle(color: t.color, fontSize: t.size)),
+        text: TextSpan(
+          text: t.text,
+          style: TextStyle(color: t.color, fontSize: t.size),
+        ),
         textDirection: TextDirection.ltr,
       );
       textPainter.layout();
@@ -141,9 +147,7 @@ class _EditImageState extends State<EditImage> {
                   children: [
                     Image.file(widget.file, fit: BoxFit.cover),
                     CustomPaint(painter: _DrawingPainter(points)),
-                    ...texts.map(
-                      (t) => _MovableText(t: t),
-                    ),
+                    ...texts.map((t) => _MovableText(t: t)),
                   ],
                 ),
               ),
@@ -180,11 +184,20 @@ class _EditImageState extends State<EditImage> {
                 _topButton(Icons.arrow_back, () => Navigator.pop(context)),
                 Row(
                   children: [
-                    _topButton(Icons.crop, () => setState(() => showCropOverlay = !showCropOverlay)),
+                    _topButton(
+                      Icons.crop,
+                      () => setState(() => showCropOverlay = !showCropOverlay),
+                    ),
                     _topButton(Icons.crop_rotate, _rotateImage),
                     _topButton(Icons.text_fields, _addTextOverlay),
-                    _topButton(Icons.edit, () => setState(() => isDrawing = !isDrawing)),
-                    _topButton(Icons.emoji_emotions_outlined, () => setState(() => showEmojiPicker = !showEmojiPicker)),
+                    _topButton(
+                      Icons.edit,
+                      () => setState(() => isDrawing = !isDrawing),
+                    ),
+                    _topButton(
+                      Icons.emoji_emotions_outlined,
+                      () => setState(() => showEmojiPicker = !showEmojiPicker),
+                    ),
                   ],
                 ),
               ],
@@ -213,7 +226,10 @@ class _EditImageState extends State<EditImage> {
                         _addTextOverlay(text: emoji);
                       },
                       child: Center(
-                        child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 28),
+                        ),
                       ),
                     );
                   },
@@ -245,14 +261,27 @@ class _EditImageState extends State<EditImage> {
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           hintText: "Add a caption...",
-                          hintStyle: TextStyle(color: Colors.white54),
-                          border: InputBorder.none,
+                          hintStyle: TextStyle(color: Colors.white70),
+                          filled: true,
+                          fillColor: Colors.black54,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(24)),
+                            borderSide: BorderSide(color: Colors.white38),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(24)),
+                            borderSide: BorderSide(color: Colors.white70),
+                          ),
                         ),
                       ),
                     ),
                     FloatingActionButton(
                       backgroundColor: Colors.green,
-                      child: const Icon(Icons.check,color: Colors.white,),
+                      child: const Icon(Icons.check, color: Colors.white),
                       onPressed: () async {
                         final editedFile = await _exportImage();
                         Navigator.pop(
@@ -276,12 +305,12 @@ class _EditImageState extends State<EditImage> {
   }
 
   Widget _topButton(IconData icon, VoidCallback onTap) => InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: Colors.white),
-        ),
-      );
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Icon(icon, color: Colors.white),
+    ),
+  );
 }
 
 class _DrawingPainter extends CustomPainter {
@@ -308,7 +337,7 @@ class _DrawingPainter extends CustomPainter {
 
 class _TextInfo {
   final String text;
-  Offset offset; 
+  Offset offset;
   final Color color;
   final double size;
 

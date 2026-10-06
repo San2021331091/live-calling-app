@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:video_player/video_player.dart';
 
 class MediaPreview extends StatefulWidget {
@@ -19,7 +20,7 @@ class _MediaPreviewState extends State<MediaPreview> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.black,
-    appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
+    appBar: AppBar(flexibleSpace: const GradientAppBarBackground()),
     body: Center(child: _controller.value.isInitialized
       ? AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller))
       : const CircularProgressIndicator()),

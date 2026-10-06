@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
@@ -186,21 +187,12 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Color(0xFF17251F)),
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Text(
           "New Community",
-          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),

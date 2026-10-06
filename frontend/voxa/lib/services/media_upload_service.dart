@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:mime/mime.dart';
 
 /// Uploads public media with unsigned provider presets. Never put a Cloudinary
 /// API secret in the mobile app; use a signed backend endpoint for private media.
@@ -40,10 +39,8 @@ class MediaUploadService {
     if (cloud.isEmpty || preset.isEmpty) {
       throw Exception('Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET in frontend/voxa/.env');
     }
-    final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
-    final resourceType = mime.startsWith('video/') ? 'video' : 'raw';
     final response = await _dio.post<dynamic>(
-      'https://api.cloudinary.com/v1_1/$cloud/$resourceType/upload',
+      'https://api.cloudinary.com/v1_1/$cloud/video/upload',
       data: FormData.fromMap({
         'upload_preset': preset,
         'file': await MultipartFile.fromFile(file.path),

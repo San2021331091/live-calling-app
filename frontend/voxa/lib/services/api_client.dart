@@ -109,6 +109,18 @@ class ApiClient {
     return UserModel.fromJson(result);
   }
 
+  Future<UserModel> updateProfile({String? name, String? bio}) async {
+    final result = await _request(
+      _baseUri.resolve('api/profile'),
+      method: 'PATCH',
+      body: {
+        if (name != null) 'name': name,
+        if (bio != null) 'bio': bio,
+      },
+    );
+    return UserModel.fromJson(result);
+  }
+
   Future<void> signOut() async {
     await _storage.deleteAll();
     _cachedUserId = '';
@@ -385,6 +397,15 @@ class ApiClient {
         },
         body: jsonEncode(body),
       ),
+      'PATCH' => _sendJson(
+        uri,
+        method: method,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: body ?? const {},
+      ),
       _ => _get(uri, headers: {'Authorization': 'Bearer $token'}),
     };
     return _decodeResponse(response);
@@ -400,6 +421,21 @@ class ApiClient {
         uri,
         data: jsonDecode(body),
         options: Options(headers: headers),
+      ),
+    );
+  }
+
+  Future<Response<dynamic>> _sendJson(
+    Uri uri, {
+    required String method,
+    required Map<String, String> headers,
+    required Map<String, Object?> body,
+  }) {
+    return _sendRequest(
+      () => _dio.requestUri<dynamic>(
+        uri,
+        data: body,
+        options: Options(method: method, headers: headers),
       ),
     );
   }

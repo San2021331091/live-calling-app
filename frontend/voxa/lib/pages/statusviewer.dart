@@ -49,7 +49,7 @@ class _StatusViewerState extends State<StatusViewer> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF07100D),
+      backgroundColor: Colors.transparent,
       body: Stack(fit: StackFit.expand, children: [
         if (widget.status.isVideo)
           Center(child: _videoController?.value.isInitialized == true

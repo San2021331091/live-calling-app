@@ -6,6 +6,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
 import 'package:flutter/material.dart';
+import 'package:voxa/colors/colors.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/model/chatmodel.dart';
@@ -22,8 +23,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class IndividualPage extends StatefulWidget {
   const IndividualPage({super.key, required this.chatModel});
   final ChatModel chatModel;
-
-  
 
   @override
   State<IndividualPage> createState() => _IndividualPageState();
@@ -132,7 +131,8 @@ class _IndividualPageState extends State<IndividualPage> {
         setState(() => _chatError = decoded['error'] as String?);
       }
     } catch (_) {
-      if (mounted) setState(() => _chatError = 'Received an invalid chat event.');
+      if (mounted)
+        setState(() => _chatError = 'Received an invalid chat event.');
     }
   }
 
@@ -142,7 +142,9 @@ class _IndividualPageState extends State<IndividualPage> {
     if (content.isEmpty) return;
     if (channel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('The live chat is not connected. Retry first.')),
+        const SnackBar(
+          content: Text('The live chat is not connected. Retry first.'),
+        ),
       );
       return;
     }
@@ -157,12 +159,19 @@ class _IndividualPageState extends State<IndividualPage> {
         peerId == null ||
         peerId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calls are available in direct chats with registered users.')),
+        const SnackBar(
+          content: Text(
+            'Calls are available in direct chats with registered users.',
+          ),
+        ),
       );
       return;
     }
     try {
-      final call = await ApiClient.instance.createCall(peerId: peerId, media: media);
+      final call = await ApiClient.instance.createCall(
+        peerId: peerId,
+        media: media,
+      );
       if (!mounted) return;
       await Navigator.push(
         context,
@@ -179,9 +188,9 @@ class _IndividualPageState extends State<IndividualPage> {
       );
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -189,7 +198,7 @@ class _IndividualPageState extends State<IndividualPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F5),
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           // HEADER
@@ -197,20 +206,29 @@ class _IndividualPageState extends State<IndividualPage> {
             height: 68,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE8ECE9))),
+              gradient: AppColor.brandGradient,
+              border: Border(bottom: BorderSide(color: Colors.white24)),
             ),
             child: Row(
               children: [
                 InkWell(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back_rounded, color: Color(0xFF34433B)),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: const Color(0xFFE8F3ED),
-                  child: Icon(widget.chatModel.isGroup == true ? Icons.groups_2_rounded : Icons.person_rounded, color: const Color(0xFF168A62), size: 22),
+                  child: Icon(
+                    widget.chatModel.isGroup == true
+                        ? Icons.groups_2_rounded
+                        : Icons.person_rounded,
+                    color: const Color(0xFF168A62),
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -221,7 +239,7 @@ class _IndividualPageState extends State<IndividualPage> {
                       Text(
                         widget.chatModel.name,
                         style: const TextStyle(
-                          color: Color(0xFF17251F),
+                          color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -229,7 +247,15 @@ class _IndividualPageState extends State<IndividualPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(widget.chatModel.isGroup == true ? 'Group conversation' : (widget.chatModel.peerPhone ?? 'Conversation'), style: const TextStyle(color: Color(0xFF75827B), fontSize: 10.5)),
+                      Text(
+                        widget.chatModel.isGroup == true
+                            ? 'Group conversation'
+                            : (widget.chatModel.peerPhone ?? 'Conversation'),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10.5,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -237,15 +263,24 @@ class _IndividualPageState extends State<IndividualPage> {
                   children: [
                     IconButton(
                       onPressed: () => _startCall(CallMedia.video),
-                      icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
+                      icon: const Icon(
+                        Icons.videocam_outlined,
+                        color: Colors.white,
+                      ),
                     ),
                     IconButton(
                       onPressed: () => _startCall(CallMedia.audio),
-                      icon: const Icon(Icons.call_outlined, color: Color(0xFF168A62)),
+                      icon: const Icon(
+                        Icons.call_outlined,
+                        color: Colors.white,
+                      ),
                     ),
                     PopupMenuButton<String>(
                       color: Colors.white,
-                      icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF536159)),
+                      icon: const Icon(
+                        Icons.more_horiz_rounded,
+                        color: Colors.white,
+                      ),
                       onSelected: (value) {
                         switch (value) {
                           case "View Contact":
@@ -339,20 +374,34 @@ class _IndividualPageState extends State<IndividualPage> {
                                 child: Container(
                                   constraints: BoxConstraints(
                                     maxWidth:
-                                        MediaQuery.of(context).size.width * 0.75,
+                                        MediaQuery.of(context).size.width *
+                                        0.75,
                                   ),
                                   padding: const EdgeInsets.all(10),
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 5),
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: message.isMe ? const Color(0xFFDDF4E7) : Colors.white,
+                                    color: message.isMe
+                                        ? const Color(0xFFDDF4E7)
+                                        : Colors.white,
                                     borderRadius: BorderRadius.only(
                                       topLeft: const Radius.circular(18),
                                       topRight: const Radius.circular(18),
-                                      bottomLeft: Radius.circular(message.isMe ? 18 : 5),
-                                      bottomRight: Radius.circular(message.isMe ? 5 : 18),
+                                      bottomLeft: Radius.circular(
+                                        message.isMe ? 18 : 5,
+                                      ),
+                                      bottomRight: Radius.circular(
+                                        message.isMe ? 5 : 18,
+                                      ),
                                     ),
-                                    boxShadow: const [BoxShadow(color: Color(0x0A17251F), blurRadius: 10, offset: Offset(0, 3))],
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x0A17251F),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -622,35 +671,104 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   Widget _messageContent(MessageModel message) {
-    if (message.mediaUrl == null) return Text(message.message, style: const TextStyle(color: Color(0xFF26362E)));
+    if (message.mediaUrl == null)
+      return Text(
+        message.message,
+        style: const TextStyle(color: Color(0xFF26362E)),
+      );
     if (message.mediaType == 'image') {
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(message.mediaUrl!, width: 220, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Color(0xFF75827B)))),
-        if (message.message.isNotEmpty && message.message != 'Image') Text(message.message, style: const TextStyle(color: Color(0xFF26362E))),
-      ]);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              message.mediaUrl!,
+              width: 220,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.broken_image, color: Color(0xFF75827B)),
+            ),
+          ),
+          if (message.message.isNotEmpty && message.message != 'Image')
+            Text(
+              message.message,
+              style: const TextStyle(color: Color(0xFF26362E)),
+            ),
+        ],
+      );
     }
-    return InkWell(onTap: () {
-      if (message.mediaType == 'video') {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => MediaPreview(url: message.mediaUrl!)));
-      } else {
-        showDialog<void>(context: context, builder: (_) => AlertDialog(title: Text(message.mediaName ?? 'Attachment'), content: SelectableText(message.mediaUrl!)));
-      }
-    }, child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file, color: const Color(0xFF168A62)),
-      const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message, style: const TextStyle(color: Color(0xFF26362E)))),
-    ]));
+    return InkWell(
+      onTap: () {
+        if (message.mediaType == 'video') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MediaPreview(url: message.mediaUrl!),
+            ),
+          );
+        } else {
+          showDialog<void>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text(message.mediaName ?? 'Attachment'),
+              content: SelectableText(message.mediaUrl!),
+            ),
+          );
+        }
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            message.mediaType == 'video'
+                ? Icons.play_circle
+                : Icons.insert_drive_file,
+            color: const Color(0xFF168A62),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message.mediaName ?? message.message,
+              style: const TextStyle(color: Color(0xFF26362E)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _uploadAndSend(File file, String type, String name) async {
     final channel = _channel;
-    if (channel == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chat is not connected.'))); return; }
+    if (channel == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Chat is not connected.')));
+      return;
+    }
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uploading attachment…')));
-      final url = await MediaUploadService.upload(file, isVideo: type != 'image');
-      await ApiClient.instance.sendMessage(channel, jsonEncode({'_voxa_media': true, 'url': url, 'type': type, 'name': name, 'caption': ''}));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Uploading attachment…')));
+      final url = await MediaUploadService.upload(
+        file,
+        isVideo: type != 'image',
+      );
+      await ApiClient.instance.sendMessage(
+        channel,
+        jsonEncode({
+          '_voxa_media': true,
+          'url': url,
+          'type': type,
+          'name': name,
+          'caption': '',
+        }),
+      );
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Attachment failed: $error')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Attachment failed: $error')));
     }
   }
 
@@ -703,16 +821,37 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   Future<void> _chooseMedia(ImageSource source) async {
-    final type = await showModalBottomSheet<String>(context: context, builder: (context) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      ListTile(leading: const Icon(Icons.photo), title: const Text('Photo'), onTap: () => Navigator.pop(context, 'image')),
-      ListTile(leading: const Icon(Icons.videocam), title: const Text('Video'), onTap: () => Navigator.pop(context, 'video')),
-    ])));
+    final type = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Photo'),
+              onTap: () => Navigator.pop(context, 'image'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam),
+              title: const Text('Video'),
+              onTap: () => Navigator.pop(context, 'video'),
+            ),
+          ],
+        ),
+      ),
+    );
     if (type == 'video') {
-      final video = await _imagePicker.pickVideo(source: source, maxDuration: const Duration(minutes: 5));
-      if (video != null) await _uploadAndSend(File(video.path), 'video', video.name);
+      final video = await _imagePicker.pickVideo(
+        source: source,
+        maxDuration: const Duration(minutes: 5),
+      );
+      if (video != null)
+        await _uploadAndSend(File(video.path), 'video', video.name);
     } else if (type == 'image') {
       final image = await _imagePicker.pickImage(source: source);
-      if (image != null) await _uploadAndSend(File(image.path), 'image', image.name);
+      if (image != null)
+        await _uploadAndSend(File(image.path), 'image', image.name);
     }
   }
 
@@ -720,7 +859,8 @@ class _IndividualPageState extends State<IndividualPage> {
     final result = await FilePicker.platform.pickFiles(type: FileType.audio);
 
     final file = result?.files.single;
-    if (file != null && file.path != null) await _uploadAndSend(File(file.path!), 'audio', file.name);
+    if (file != null && file.path != null)
+      await _uploadAndSend(File(file.path!), 'audio', file.name);
   }
 
   Future<void> shareLocation() async {

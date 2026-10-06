@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/pages/createnewcommunity.dart';
 import 'package:voxa/model/chatmodel.dart';
 
@@ -16,29 +17,15 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
       'icon': Icons.group,
       'color': const Color(0xFF168A62),
     },
-    {
-      'name': 'Work',
-      'icon': Icons.work,
-      'color': const Color(0xFF168A62),
-    },
-    {
-      'name': 'School',
-      'icon': Icons.school,
-      'color': const Color(0xFF168A62),
-    },
-    {
-      'name': 'Other',
-      'icon': Icons.public,
-      'color': const Color(0xFF168A62),
-    },
+    {'name': 'Work', 'icon': Icons.work, 'color': const Color(0xFF168A62)},
+    {'name': 'School', 'icon': Icons.school, 'color': const Color(0xFF168A62)},
+    {'name': 'Other', 'icon': Icons.public, 'color': const Color(0xFF168A62)},
   ];
 
   Future<void> _openCommunityInfo(String type) async {
     final community = await Navigator.push<ChatModel>(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddCommunityInfo(communityType: type),
-      ),
+      MaterialPageRoute(builder: (_) => AddCommunityInfo(communityType: type)),
     );
     if (community != null && mounted) Navigator.pop(context, community);
   }
@@ -47,13 +34,12 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Color(0xFF35433C)),
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Text(
           "New Community",
-          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         elevation: 0,
-        backgroundColor: const Color(0xFFF9FBF9),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -61,7 +47,11 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
           children: [
             const Text(
               "Select Community Type",
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700,color: Color(0xFF17251F)),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF17251F),
+              ),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -94,7 +84,7 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: type['color'].shade700,
+                              color: const Color(0xFF075E54),
                             ),
                           ),
                         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/pages/addnewgroup.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/services/api_client.dart';
@@ -53,18 +54,17 @@ class _CreateGroupState extends State<CreateGroup> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Color(0xFF35433C)),
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("New group",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Color(0xFF17251F))),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Colors.white)),
             SizedBox(height: 2),
             Text("Add participants",
-                style: TextStyle(fontSize: 11, color: Color(0xFF75827B))),
+                style: TextStyle(fontSize: 11, color: Colors.white70)),
           ],
         ),
-        backgroundColor: const Color(0xFFF9FBF9),
       ),
 
       floatingActionButton: selectedUsers.isNotEmpty

@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:voxa/model/user_model.dart';
+import 'package:voxa/services/api_client.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -13,12 +16,51 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   final ImagePicker _picker = ImagePicker();
   File? _profileImage;
 
-  String name = "Santosh Saha";
-  String about = "Hey there! I am using Voxa";
-  String email = "santosh@email.com";
-  String status = "Available";
-  String location = "Bangladesh";
-  final String phone = "+880 1234 567890";
+  UserModel? _profile;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final profile = await ApiClient.instance.loadCurrentUser();
+      if (mounted) setState(() => _profile = profile);
+    } on ApiException catch (exception) {
+      if (mounted) setState(() => _error = exception.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not load your profile.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveProfile({String? name, String? bio}) async {
+    try {
+      final profile = await ApiClient.instance.updateProfile(name: name, bio: bio);
+      if (mounted) setState(() => _profile = profile);
+    } on ApiException catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(exception.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update your profile.')),
+        );
+      }
+    }
+  }
 
   /// Pick image from camera/gallery
   Future<void> _pickImage(ImageSource source) async {
@@ -143,15 +185,26 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
+        flexibleSpace: const GradientAppBarBackground(),
         elevation: 0,
         title: const Text("Profile"),
-        foregroundColor: const Color(0xFF17251F),
       ),
 
       body: ListView(
         children: [
+          if (_isLoading)
+            const LinearProgressIndicator()
+          else if (_error != null)
+            ListTile(
+              title: Text(_error!),
+              trailing: IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadProfile,
+              ),
+            )
+          else if (_profile != null) ...[
           /// HEADER
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
@@ -194,7 +247,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  name,
+                  _profile!.name,
                   style: const TextStyle(
                     color: const Color(0xFF17251F),
                     fontSize: 20,
@@ -220,49 +273,28 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             icon: Icons.person,
             color: const Color(0xFF168A62),
             title: "Name",
-            value: name,
-            onTap: () =>
-                _editField("Name", name, (v) => setState(() => name = v)),
+            value: _profile!.name,
+            onTap: () => _editField(
+              'Name', _profile!.name, (value) => _saveProfile(name: value),
+            ),
           ),
           _infoTile(
             icon: Icons.info,
             color: const Color(0xFF168A62),
             title: "About",
-            value: about,
-            onTap: () =>
-                _editField("About", about, (v) => setState(() => about = v)),
-          ),
-          _infoTile(
-            icon: Icons.email,
-            color: const Color(0xFF168A62),
-            title: "Email",
-            value: email,
-            onTap: () =>
-                _editField("Email", email, (v) => setState(() => email = v)),
-          ),
-          _infoTile(
-            icon: Icons.circle,
-            color: const Color(0xFF168A62),
-            title: "Status",
-            value: status,
-            onTap: () =>
-                _editField("Status", status, (v) => setState(() => status = v)),
-          ),
-          _infoTile(
-            icon: Icons.location_on,
-            color: const Color(0xFF168A62),
-            title: "Location",
-            value: location,
+            value: _profile!.bio,
             onTap: () => _editField(
-                "Location", location, (v) => setState(() => location = v)),
+              'About', _profile!.bio, (value) => _saveProfile(bio: value),
+            ),
           ),
           _infoTile(
             icon: Icons.phone,
             color: const Color(0xFF168A62),
             title: "Phone",
-            value: phone,
+            value: _profile!.phone,
             enabled: false,
           ),
+          ],
         ],
       ),
     );

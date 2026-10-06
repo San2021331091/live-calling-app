@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
 
 class CreateContactPage extends StatefulWidget {
@@ -111,17 +112,16 @@ class _CreateContactPageState extends State<CreateContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
 
       appBar: AppBar(
+        flexibleSpace: const GradientAppBarBackground(),
         elevation: 0,
-        foregroundColor: const Color(0xFF17251F),
-        backgroundColor: const Color(0xFFF5F7F5),
         title: const Text(
           "Create new contact",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF17251F),
+            color: Colors.white,
           ),
         ),
         actions: [
@@ -132,21 +132,12 @@ class _CreateContactPageState extends State<CreateContactPage> {
             child: const Text(
               "SAVE",
               style: TextStyle(
-                color: Color(0xFF168A62),
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ],
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
       ),
 
       body: SingleChildScrollView(

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
@@ -274,17 +275,16 @@ class _AddNewGroupState extends State<AddNewGroup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
 
       appBar: AppBar(
+        flexibleSpace: const GradientAppBarBackground(),
         elevation: 0,
-        backgroundColor: const Color(0xFFF5F7F5),
-        foregroundColor: const Color(0xFF17251F),
         title: const Text(
           "New group",
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: Color(0xFF17251F),
+            color: Colors.white,
           ),
         ),
       ),

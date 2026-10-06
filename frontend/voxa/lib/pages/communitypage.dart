@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/groupchatpage.dart';
 import 'package:voxa/services/api_client.dart';
@@ -60,14 +61,13 @@ class _CommunityPageState extends State<CommunityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Text(
           "My Communities",
-          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -176,5 +176,4 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 }
-
 

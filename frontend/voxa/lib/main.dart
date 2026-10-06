@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:voxa/colors/colors.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:voxa/screens/splashscreen.dart';
 
@@ -15,6 +17,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => DecoratedBox(
+        decoration: const BoxDecoration(gradient: AppColor.backgroundGradient),
+        child: child ?? const SizedBox.shrink(),
+      ),
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Poppins',
@@ -24,12 +30,16 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFFF5F7F5),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF9FBF9),
-          foregroundColor: Color(0xFF17251F),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          iconTheme: IconThemeData(color: Colors.white),
+          actionsIconTheme: IconThemeData(color: Colors.white),
           elevation: 0,
           centerTitle: false,
+          systemOverlayStyle: SystemUiOverlayStyle.light,
           titleTextStyle: TextStyle(
-            color: Color(0xFF17251F),
+            color: Colors.white,
             fontFamily: 'Poppins',
             fontSize: 18,
             fontWeight: FontWeight.w700,

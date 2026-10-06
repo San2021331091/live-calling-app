@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -131,7 +132,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F5),
+      backgroundColor: Colors.transparent,
       appBar: _greenAppBar(),
       body: Column(
         children: [
@@ -144,9 +145,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   PreferredSizeWidget _greenAppBar() {
     return AppBar(
+      flexibleSpace: const GradientAppBarBackground(),
       elevation: 0,
-      backgroundColor: Colors.white,
-      foregroundColor: const Color(0xFF26362E),
       bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1, color: Color(0xFFE8ECE9))),
       title: Row(
         children: [
@@ -160,12 +160,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF17251F),
+                  color: Colors.white,
                 ),
               ),
               const Text(
                 "Group conversation",
-                style: TextStyle(fontSize: 10, color: Color(0xFF75827B)),
+                style: TextStyle(fontSize: 10, color: Colors.white70),
               ),
             ],
           ),
@@ -174,11 +174,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
       actions: [
         IconButton(
           onPressed: _showGroupCallsUnavailable,
-          icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
+          icon: const Icon(Icons.videocam_outlined, color: Colors.white),
         ),
         IconButton(
           onPressed: _showGroupCallsUnavailable,
-          icon: const Icon(Icons.call_outlined, color: Color(0xFF168A62)),
+          icon: const Icon(Icons.call_outlined, color: Colors.white),
         ),
       ],
     );

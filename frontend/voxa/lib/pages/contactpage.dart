@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:voxa/model/call_model.dart';
 import 'package:voxa/pages/individualpage.dart';
@@ -158,9 +159,9 @@ class _ContactPageState extends State<ContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF9FBF9),
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Text("Contacts"),
       ),
       body: isLoading

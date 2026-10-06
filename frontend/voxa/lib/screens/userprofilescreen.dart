@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/call_model.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/individualpage.dart';
@@ -24,13 +25,13 @@ class UserProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
+        flexibleSpace: const GradientAppBarBackground(),
         title: const Text(
           "Contact Info",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        foregroundColor: const Color(0xFF17251F),
         elevation: 0,
       ),
       body: Column(

@@ -5,11 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:voxa/screens/capturephoto.dart';
 import 'package:voxa/media/media_result.dart';
 
-
-
-
 class CameraPage extends StatefulWidget {
-  const CameraPage({super.key});
+  const CameraPage({super.key, this.onMediaCaptured});
+
+  final Future<void> Function(MediaResult media)? onMediaCaptured;
 
   @override
   State<CameraPage> createState() => _CameraPageState();
@@ -17,6 +16,7 @@ class CameraPage extends StatefulWidget {
 
 class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
+  bool _isBusy = false;
   List<CameraDescription>? cameras;
   int selectedCameraIndex = 0;
 
@@ -31,32 +31,32 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> _initCamera() async {
     try {
-    cameras = await availableCameras();
-    if (cameras!.isEmpty) throw CameraException('no_camera', 'No camera is available');
-    _controller = CameraController(
-      cameras![selectedCameraIndex],
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-    await _controller!.initialize();
-    if (mounted) setState(() {});
-    } catch (_) { if (mounted) setState(() {}); }
+      cameras = await availableCameras();
+      if (cameras!.isEmpty)
+        throw CameraException('no_camera', 'No camera is available');
+      _controller = CameraController(
+        cameras![selectedCameraIndex],
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await _controller!.initialize();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
   }
 
   /// -------- GALLERY --------
   Future<void> _pickFromGallery() async {
-    final XFile? image =
-        await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
 
     if (image == null || !mounted) return;
 
     final result = await Navigator.push<MediaResult>(
       context,
-      MaterialPageRoute(
-        builder: (_) => CapturePhoto(file: File(image.path)),
-      ),
+      MaterialPageRoute(builder: (_) => CapturePhoto(file: File(image.path))),
     );
-    if (result != null && mounted) Navigator.pop(context, result);
+    if (result != null && mounted) await _returnMedia(result);
   }
 
   /// -------- CAMERA CONTROLS --------
@@ -68,9 +68,7 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> _toggleFlash() async {
-    flashMode = flashMode == FlashMode.off
-        ? FlashMode.torch
-        : FlashMode.off;
+    flashMode = flashMode == FlashMode.off ? FlashMode.torch : FlashMode.off;
     await _controller?.setFlashMode(flashMode);
     setState(() {});
   }
@@ -83,17 +81,49 @@ class _CameraPageState extends State<CameraPage> {
 
     final result = await Navigator.push<MediaResult>(
       context,
-      MaterialPageRoute(
-        builder: (_) => CapturePhoto(file: File(file.path)),
-      ),
+      MaterialPageRoute(builder: (_) => CapturePhoto(file: File(file.path))),
     );
-    if (result != null && mounted) Navigator.pop(context, result);
+    if (result != null && mounted) await _returnMedia(result);
   }
 
   Future<void> _captureVideo() async {
-    final video = await _picker.pickVideo(source: ImageSource.camera, maxDuration: const Duration(seconds: 60));
-    if (video == null || !mounted) return;
-    Navigator.pop(context, MediaResult(file: File(video.path), isVideo: true, caption: ''));
+    if (_isBusy) return;
+    _isBusy = true;
+    final controller = _controller;
+    _controller = null;
+    await controller?.dispose();
+    if (mounted) setState(() {});
+
+    try {
+      final video = await _picker.pickVideo(
+        source: ImageSource.camera,
+        maxDuration: const Duration(seconds: 60),
+      );
+      if (video != null && mounted) {
+        await _returnMedia(
+          MediaResult(file: File(video.path), isVideo: true, caption: ''),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not capture video: $error')),
+        );
+      }
+    } finally {
+      _isBusy = false;
+      if (mounted) await _initCamera();
+    }
+  }
+
+  Future<void> _returnMedia(MediaResult media) async {
+    if (widget.onMediaCaptured != null) {
+      await widget.onMediaCaptured!(media);
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.pop(context, media);
+    }
   }
 
   @override
@@ -107,7 +137,12 @@ class _CameraPageState extends State<CameraPage> {
     if (_controller == null || !_controller!.value.isInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: Text('Camera unavailable. Check camera permission.', style: TextStyle(color: Colors.white))),
+        body: Center(
+          child: Text(
+            'Camera unavailable. Check camera permission.',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
       );
     }
 
@@ -124,7 +159,12 @@ class _CameraPageState extends State<CameraPage> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     stops: [0, 0.22, 0.62, 1],
-                    colors: [Color(0x99000000), Colors.transparent, Colors.transparent, Color(0xCC000000)],
+                    colors: [
+                      Color(0x99000000),
+                      Colors.transparent,
+                      Colors.transparent,
+                      Color(0xCC000000),
+                    ],
                   ),
                 ),
               ),
@@ -135,31 +175,81 @@ class _CameraPageState extends State<CameraPage> {
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
               child: Column(
                 children: [
-                  Row(children: [
-                    _circleButton(Icons.close_rounded, () => Navigator.pop(context)),
-                    const Expanded(child: Column(children: [
-                      Text('CREATE UPDATE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
-                      SizedBox(height: 3),
-                      Text('Capture a moment', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    ])),
-                    _circleButton(flashMode == FlashMode.off ? Icons.flash_off_rounded : Icons.flash_on_rounded, _toggleFlash),
-                  ]),
+                  Row(
+                    children: [
+                      _circleButton(
+                        Icons.close_rounded,
+                        () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              'CREATE UPDATE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Capture a moment',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _circleButton(
+                        flashMode == FlashMode.off
+                            ? Icons.flash_off_rounded
+                            : Icons.flash_on_rounded,
+                        _toggleFlash,
+                      ),
+                    ],
+                  ),
                   const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _bottomAction(Icons.photo_library_outlined, 'GALLERY', _pickFromGallery),
+                      _bottomAction(
+                        Icons.photo_library_outlined,
+                        'GALLERY',
+                        _pickFromGallery,
+                      ),
                       GestureDetector(
                         onTap: _capturePhoto,
                         child: Container(
-                          width: 78, height: 78, padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
-                          child: Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white)),
+                          width: 78,
+                          height: 78,
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                      _bottomAction(Icons.videocam_outlined, 'VIDEO', _captureVideo),
-                      _bottomAction(Icons.cameraswitch_rounded, 'FLIP', _switchCamera),
+                      _bottomAction(
+                        Icons.videocam_outlined,
+                        'VIDEO',
+                        _captureVideo,
+                      ),
+                      _bottomAction(
+                        Icons.cameraswitch_rounded,
+                        'FLIP',
+                        _switchCamera,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -179,19 +269,38 @@ class _CameraPageState extends State<CameraPage> {
       child: Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle, border: Border.all(color: Colors.white24)),
+        decoration: BoxDecoration(
+          color: Colors.black38,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white24),
+        ),
         child: Icon(icon, color: Colors.white, size: 21),
       ),
     );
   }
 
-  Widget _bottomAction(IconData icon, String label, VoidCallback onTap) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(16),
-    child: SizedBox(width: 62, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, color: Colors.white, size: 25),
-      const SizedBox(height: 7),
-      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.7)),
-    ])),
-  );
+  Widget _bottomAction(IconData icon, String label, VoidCallback onTap) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 62,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 25),
+              const SizedBox(height: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/pages/groupchatpage.dart';
@@ -55,7 +56,8 @@ class _SelectContactState extends State<SelectContact> {
     } on ApiException catch (exception) {
       if (mounted) _showError(exception.message);
     } catch (_) {
-      if (mounted) _showError('Could not start this chat. Check your connection.');
+      if (mounted)
+        _showError('Could not start this chat. Check your connection.');
     }
   }
 
@@ -95,45 +97,50 @@ class _SelectContactState extends State<SelectContact> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        flexibleSpace: const GradientAppBarBackground(),
         elevation: 0,
-        leading: const BackButton(color: Color(0xFF17251F)),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               "Select contact",
-              style: TextStyle(fontSize: 18, color: Color(0xFF17251F), fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             SizedBox(height: 2),
             Text(
-              isLoading ? 'Loading accounts...' : '${users.length} Voxa accounts',
+              isLoading
+                  ? 'Loading accounts...'
+                  : '${users.length} Voxa accounts',
               style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF75827B),
+                color: Colors.white70,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            color: const Color(0xFF17251F),
-            onPressed: _loadUsers,
-          ),
+          IconButton(icon: const Icon(Icons.search), onPressed: _loadUsers),
           const SizedBox(width: 12),
           PopupMenuButton<String>(
             color: Colors.white,
-            icon: const Icon(Icons.more_vert, color: Color(0xFF17251F)),
+            icon: const Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) {
               switch (value) {
                 case 'invite':
                   print('Invite a friend');
                   break;
                 case 'contacts':
-                {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactPage()));
-                }
+                  {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ContactPage()),
+                    );
+                  }
                   break;
                 case 'refresh':
                   print('Refresh');
@@ -148,16 +155,22 @@ class _SelectContactState extends State<SelectContact> {
                 value: 'invite',
                 child: Text(
                   'Invite a friend',
-                    style: TextStyle(color: Color(0xFF17251F)),
+                  style: TextStyle(color: Color(0xFF17251F)),
                 ),
               ),
               PopupMenuItem(
                 value: 'contacts',
-                child: Text('Contacts', style: TextStyle(color: Color(0xFF17251F))),
+                child: Text(
+                  'Contacts',
+                  style: TextStyle(color: Color(0xFF17251F)),
+                ),
               ),
               PopupMenuItem(
                 value: 'refresh',
-                child: Text('Refresh', style: TextStyle(color: Color(0xFF17251F))),
+                child: Text(
+                  'Refresh',
+                  style: TextStyle(color: Color(0xFF17251F)),
+                ),
               ),
               PopupMenuItem(
                 value: 'help',
@@ -166,27 +179,21 @@ class _SelectContactState extends State<SelectContact> {
             ],
           ),
         ],
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
       ),
 
       body: ListView(
         children: [
+          _topTile(icon: Icons.group, title: "New group", onTap: _createGroup),
           _topTile(
-            icon: Icons.group,
-            title: "New group",
-            onTap: _createGroup,
+            icon: Icons.person_add,
+            title: "New contact",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateContactPage()),
+              );
+            },
           ),
-          _topTile(icon: Icons.person_add, title: "New contact", onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateContactPage()));
-          }),
           _topTile(
             icon: Icons.group_add_sharp,
             title: "New Community",

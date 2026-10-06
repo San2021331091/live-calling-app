@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:voxa/colors/colors.dart';
 import 'package:voxa/pages/camerapage.dart';
 import 'package:voxa/pages/chatpage.dart';
 import 'package:voxa/pages/communitypage.dart';
@@ -14,6 +15,8 @@ import 'package:voxa/model/call_model.dart';
 import 'package:voxa/screens/webrtc_call_screen.dart';
 import 'package:voxa/screens/loginscreen.dart';
 import 'package:voxa/services/api_client.dart';
+import 'package:voxa/media/media_result.dart';
+import 'package:voxa/services/status_upload_service.dart';
 
 // HomeScreen widget with TabBar and AppBar
 class HomeScreen extends StatefulWidget {
@@ -26,12 +29,15 @@ class HomeScreen extends StatefulWidget {
 // State class for HomeScreen
 class HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
+  final GlobalKey<StatusScreenState> _statusScreenKey =
+      GlobalKey<StatusScreenState>();
   late TabController tabController;
   Timer? _incomingCallTimer;
   final Set<String> _seenIncomingCallIds = {};
   bool _checkingIncomingCalls = false;
   bool _showingIncomingDialog = false;
   bool _incomingErrorShown = false;
+  bool _uploadingStatus = false;
 
   @override
   void initState() {
@@ -68,11 +74,37 @@ class HomeScreenState extends State<HomeScreen>
       if (mounted && !_incomingErrorShown) {
         _incomingErrorShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Incoming call check failed: ${error.message}')),
+          SnackBar(
+            content: Text('Incoming call check failed: ${error.message}'),
+          ),
         );
       }
     } finally {
       _checkingIncomingCalls = false;
+    }
+  }
+
+  Future<void> _publishStatusMedia(MediaResult media) async {
+    if (_uploadingStatus) return;
+    setState(() => _uploadingStatus = true);
+    try {
+      await StatusUploadService.publish(media);
+      if (mounted) {
+        final statusScreen = _statusScreenKey.currentState;
+        if (statusScreen != null) await statusScreen.refresh();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your update is live')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingStatus = false);
     }
   }
 
@@ -132,62 +164,128 @@ class HomeScreenState extends State<HomeScreen>
         preferredSize: const Size.fromHeight(116),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFF9FBF9),
-            border: Border(bottom: BorderSide(color: Color(0xFFE8ECE9))),
+            gradient: AppColor.brandGradient,
+            border: Border(bottom: BorderSide(color: Colors.white24)),
           ),
           child: SafeArea(
             child: Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 2, 12, 0),
-                  child: Row(children: [
-                    Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(color: const Color(0xFFE6F3ED), borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.forum_rounded, color: Color(0xFF168A62), size: 21),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                      Text('Voxa', style: TextStyle(color: Color(0xFF17251F), fontSize: 18, fontWeight: FontWeight.w800, height: 1.15)),
-                      SizedBox(height: 2),
-                      Text('Stay close to your people', style: TextStyle(color: Color(0xFF75827B), fontSize: 10.5)),
-                    ])),
-                    IconButton(
-                      tooltip: 'Search',
-                      icon: const Icon(Icons.search_rounded, color: Color(0xFF46554D)),
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
-                    ),
-                    PopupMenuButton<String>(
-                      color: Colors.white,
-                      icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF46554D)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      itemBuilder: (BuildContext context) => [
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE6F3ED),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.asset(
+                            'assets/voxa.png',
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Voxa',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Stay close to your people',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Search',
+                        icon: const Icon(
+                          Icons.search_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SearchScreen(),
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        color: Colors.white,
+                        icon: const Icon(
+                          Icons.more_horiz_rounded,
+                          color: Colors.white,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        itemBuilder: (BuildContext context) => [
                           PopupMenuItem(
                             value: "New Group",
                             child: const Text("New Group"),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateGroup()));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CreateGroup(),
+                                ),
+                              );
                             },
                           ),
                           PopupMenuItem(
                             value: "New Community",
                             child: const Text("New Community"),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateNewCommunity()));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CreateNewCommunity(),
+                                ),
+                              );
                             },
                           ),
                           PopupMenuItem(
                             value: "My Profile",
                             child: const Text("My profile"),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MyProfileScreen(),
+                                ),
+                              );
                             },
                           ),
                           PopupMenuItem(
                             value: "My communities",
                             child: const Text("My Communities"),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityPage()));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CommunityPage(),
+                                ),
+                              );
                             },
                           ),
                           PopupMenuItem(
@@ -197,22 +295,31 @@ class HomeScreenState extends State<HomeScreen>
                               final navigator = Navigator.of(context);
                               await ApiClient.instance.signOut();
                               if (!mounted) return;
-                              navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+                              navigator.pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                                (_) => false,
+                              );
                             },
                           ),
                         ],
-                    ),
-                  ]),
+                      ),
+                    ],
+                  ),
                 ),
                 TabBar(
                   controller: tabController,
-                  labelColor: const Color(0xFF168A62),
-                  unselectedLabelColor: const Color(0xFF87928C),
-                  indicatorColor: const Color(0xFF168A62),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white70,
+                  indicatorColor: Colors.white,
                   indicatorWeight: 3,
                   indicatorSize: TabBarIndicatorSize.label,
                   dividerColor: Colors.transparent,
-                  labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  labelStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                   tabs: const [
                     Tab(icon: Icon(Icons.camera_alt_outlined)),
                     Tab(text: "Chats"),
@@ -228,9 +335,9 @@ class HomeScreenState extends State<HomeScreen>
       body: TabBarView(
         controller: tabController,
         children: [
-          const CameraPage(),
+          CameraPage(onMediaCaptured: _publishStatusMedia),
           const ChatPage(),
-          const StatusScreen(),
+          StatusScreen(key: _statusScreenKey),
           const CallListScreen(),
         ],
       ),
