@@ -127,8 +127,8 @@ class _ContactPageState extends State<ContactPage> {
     return ListTile(
       leading: (contact.photo != null && contact.photo!.isNotEmpty)
           ? CircleAvatar(backgroundImage: MemoryImage(contact.photo!))
-          : const CircleAvatar(child: Icon(Icons.person)),
-      title: Text(contact.displayName),
+          : const CircleAvatar(backgroundColor: Color(0xFFE8F3ED), child: Icon(Icons.person, color: Color(0xFF168A62))),
+      title: Text(contact.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF17251F))),
       subtitle: contact.phones.isNotEmpty
           ? Text(contact.phones.first.number)
           : null,
@@ -136,15 +136,15 @@ class _ContactPageState extends State<ContactPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.message, color: Colors.green),
+            icon: const Icon(Icons.message_outlined, color: Color(0xFF168A62)),
             onPressed: () => _openChat(contact),
           ),
           IconButton(
-            icon: const Icon(Icons.call, color: Colors.blue),
+            icon: const Icon(Icons.call_outlined, color: Color(0xFF168A62)),
             onPressed: () => _startCall(contact, CallMedia.audio),
           ),
           IconButton(
-            icon: const Icon(Icons.videocam, color: Colors.purple),
+            icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
             onPressed: () => _startCall(contact, CallMedia.video),
           ),
         ],
@@ -158,10 +158,10 @@ class _ContactPageState extends State<ContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
-        backgroundColor: const Color(0xff075E54),
-        title: const Text("Contacts", style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: const Color(0xFFF9FBF9),
+        title: const Text("Contacts"),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -176,9 +176,9 @@ class _ContactPageState extends State<ContactPage> {
                     decoration: InputDecoration(
                       hintText: "Search contacts",
                       prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: const Color(0xFFF0F4F1),
                     ),
                   ),
                 ),

@@ -9,6 +9,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
 type contextKey string
@@ -19,36 +22,70 @@ type apiError struct {
 	Error string `json:"error"`
 }
 
-func (a *application) routes() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func (a *application) routes() *fiber.App {
+	server := fiber.New(fiber.Config{
+		AppName:      "Voxa API",
+		BodyLimit:    20 * 1024 * 1024,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	})
-	mux.HandleFunc("GET /readyz", a.handleReady)
-	mux.HandleFunc("POST /api/auth/register", a.handleRegister)
-	mux.HandleFunc("POST /api/auth/login", a.handleLogin)
-	mux.Handle("GET /api/auth/me", a.auth(http.HandlerFunc(a.handleMe)))
-	mux.Handle("GET /api/profile", a.auth(http.HandlerFunc(a.handleProfile)))
-	mux.Handle("PATCH /api/profile", a.auth(http.HandlerFunc(a.handleUpdateProfile)))
-	mux.Handle("GET /api/users", a.auth(http.HandlerFunc(a.handleUsers)))
-	mux.Handle("GET /api/chats", a.auth(http.HandlerFunc(a.handleListChats)))
-	mux.Handle("POST /api/chats/direct", a.auth(http.HandlerFunc(a.handleCreateDirectChat)))
-	mux.Handle("POST /api/chats/groups", a.auth(http.HandlerFunc(a.handleCreateGroupChat)))
-	mux.Handle("POST /api/chats/communities", a.auth(http.HandlerFunc(a.handleCreateCommunity)))
-	mux.Handle("GET /api/chats/{chatID}/messages", a.auth(http.HandlerFunc(a.handleMessages)))
-	mux.Handle("GET /api/statuses", a.auth(http.HandlerFunc(a.handleListStatuses)))
-	mux.Handle("POST /api/statuses", a.auth(http.HandlerFunc(a.handleCreateStatus)))
-	mux.Handle("POST /api/statuses/{statusID}/view", a.auth(http.HandlerFunc(a.handleViewStatus)))
-	mux.Handle("POST /api/media/upload", a.auth(http.HandlerFunc(a.handleUploadMedia)))
-	mux.Handle("GET /api/calls", a.auth(http.HandlerFunc(a.handleCallHistory)))
-	mux.Handle("GET /api/calls/incoming", a.auth(http.HandlerFunc(a.handleIncomingCalls)))
-	mux.Handle("GET /api/calls/ice-config", a.auth(http.HandlerFunc(a.handleCallICEConfig)))
-	mux.Handle("POST /api/calls", a.auth(http.HandlerFunc(a.handleCreateCall)))
-	mux.Handle("POST /api/calls/{callID}/signal", a.auth(http.HandlerFunc(a.handleCallSignal)))
-	mux.Handle("GET /api/calls/{callID}/signals", a.auth(http.HandlerFunc(a.handleCallSignals)))
-	mux.Handle("POST /api/calls/{callID}/end", a.auth(http.HandlerFunc(a.handleEndCall)))
-	mux.HandleFunc("GET /ws/{chatID}", a.handleWebSocket)
-	return a.cors(mux)
+	server.Use(recover.New())
+	server.Use(func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
+		if origin != "" {
+			if !a.originAllowed(origin) {
+				return c.Status(fiber.StatusForbidden).JSON(apiError{Error: "origin is not allowed"})
+			}
+			c.Set("Access-Control-Allow-Origin", origin)
+			c.Append("Vary", "Origin")
+			c.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			c.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+		}
+		if c.Method() == fiber.MethodOptions {
+			return c.SendStatus(fiber.StatusNoContent)
+		}
+		return c.Next()
+	})
+
+	register := func(method, path string, handler http.Handler, params ...string) {
+		server.Add(method, path, func(c *fiber.Ctx) error {
+			adapted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for _, name := range params {
+					r.SetPathValue(name, c.Params(name))
+				}
+				handler.ServeHTTP(w, r)
+			})
+			return adaptor.HTTPHandler(adapted)(c)
+		})
+	}
+	register("GET", "/healthz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}))
+	register("GET", "/readyz", http.HandlerFunc(a.handleReady))
+	register("POST", "/api/auth/register", http.HandlerFunc(a.handleRegister))
+	register("POST", "/api/auth/login", http.HandlerFunc(a.handleLogin))
+	register("GET", "/api/auth/me", a.auth(http.HandlerFunc(a.handleMe)))
+	register("GET", "/api/profile", a.auth(http.HandlerFunc(a.handleProfile)))
+	register("PATCH", "/api/profile", a.auth(http.HandlerFunc(a.handleUpdateProfile)))
+	register("GET", "/api/users", a.auth(http.HandlerFunc(a.handleUsers)))
+	register("GET", "/api/chats", a.auth(http.HandlerFunc(a.handleListChats)))
+	register("POST", "/api/chats/direct", a.auth(http.HandlerFunc(a.handleCreateDirectChat)))
+	register("POST", "/api/chats/groups", a.auth(http.HandlerFunc(a.handleCreateGroupChat)))
+	register("POST", "/api/chats/communities", a.auth(http.HandlerFunc(a.handleCreateCommunity)))
+	register("GET", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleMessages)), "chatID")
+	register("GET", "/api/statuses", a.auth(http.HandlerFunc(a.handleListStatuses)))
+	register("POST", "/api/statuses", a.auth(http.HandlerFunc(a.handleCreateStatus)))
+	register("POST", "/api/statuses/:statusID/view", a.auth(http.HandlerFunc(a.handleViewStatus)), "statusID")
+	register("POST", "/api/media/upload", a.auth(http.HandlerFunc(a.handleUploadMedia)))
+	register("GET", "/api/calls", a.auth(http.HandlerFunc(a.handleCallHistory)))
+	register("GET", "/api/calls/incoming", a.auth(http.HandlerFunc(a.handleIncomingCalls)))
+	register("GET", "/api/calls/ice-config", a.auth(http.HandlerFunc(a.handleCallICEConfig)))
+	register("POST", "/api/calls", a.auth(http.HandlerFunc(a.handleCreateCall)))
+	register("POST", "/api/calls/:callID/signal", a.auth(http.HandlerFunc(a.handleCallSignal)), "callID")
+	register("GET", "/api/calls/:callID/signals", a.auth(http.HandlerFunc(a.handleCallSignals)), "callID")
+	register("POST", "/api/calls/:callID/end", a.auth(http.HandlerFunc(a.handleEndCall)), "callID")
+	register("GET", "/ws/:chatID", http.HandlerFunc(a.handleWebSocket), "chatID")
+	return server
 }
 
 func (a *application) handleReady(w http.ResponseWriter, r *http.Request) {
@@ -59,27 +96,6 @@ func (a *application) handleReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
-}
-
-func (a *application) cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			if !a.originAllowed(origin) {
-				writeError(w, http.StatusForbidden, "origin is not allowed")
-				return
-			}
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Add("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		}
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (a *application) configureOrigins(value string) {

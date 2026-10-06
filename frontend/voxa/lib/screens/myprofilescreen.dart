@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:voxa/colors/colors.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -144,20 +143,11 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
         elevation: 0,
         title: const Text("Profile"),
-        foregroundColor: Colors.white,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColor.tealGreen,AppColor.lightGreen],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
+        foregroundColor: const Color(0xFF17251F),
       ),
 
       body: ListView(
@@ -165,20 +155,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           /// HEADER
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColor.dartTealGreen,AppColor.lightGreen],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+            decoration: const BoxDecoration(color: Colors.white),
             child: Column(
               children: [
                 Stack(
                   children: [
                     CircleAvatar(
                       radius: 55,
-                      backgroundColor: Colors.white,
+                      backgroundColor: const Color(0xFFE8F3ED),
                       backgroundImage: _profileImage != null
                           ? FileImage(_profileImage!)
                           : null,
@@ -186,7 +170,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                           ? const Icon(
                               Icons.person,
                               size: 60,
-                              color: Colors.grey,
+                              color: const Color(0xFF168A62),
                             )
                           : null,
                     ),
@@ -197,7 +181,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         onTap: _showImagePicker,
                         child: const CircleAvatar(
                           radius: 18,
-                          backgroundColor: Color(0xff25D366),
+                          backgroundColor: const Color(0xFF168A62),
                           child: Icon(
                             Icons.camera_alt,
                             size: 18,
@@ -212,7 +196,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 Text(
                   name,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: const Color(0xFF17251F),
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
@@ -221,9 +205,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 const Text(
                   "Tap to edit profile photo",
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold
+                    color: Color(0xFF75827B),
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -235,7 +218,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           /// PROFILE INFO TILES
           _infoTile(
             icon: Icons.person,
-            color: Colors.blue,
+            color: const Color(0xFF168A62),
             title: "Name",
             value: name,
             onTap: () =>
@@ -243,7 +226,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ),
           _infoTile(
             icon: Icons.info,
-            color: Colors.orange,
+            color: const Color(0xFF168A62),
             title: "About",
             value: about,
             onTap: () =>
@@ -251,7 +234,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ),
           _infoTile(
             icon: Icons.email,
-            color: Colors.purple,
+            color: const Color(0xFF168A62),
             title: "Email",
             value: email,
             onTap: () =>
@@ -259,7 +242,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ),
           _infoTile(
             icon: Icons.circle,
-            color: Colors.green,
+            color: const Color(0xFF168A62),
             title: "Status",
             value: status,
             onTap: () =>
@@ -267,7 +250,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ),
           _infoTile(
             icon: Icons.location_on,
-            color: Colors.redAccent,
+            color: const Color(0xFF168A62),
             title: "Location",
             value: location,
             onTap: () => _editField(
@@ -275,7 +258,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ),
           _infoTile(
             icon: Icons.phone,
-            color: Colors.teal,
+            color: const Color(0xFF168A62),
             title: "Phone",
             value: phone,
             enabled: false,
@@ -300,10 +283,10 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(title, style: TextStyle(color: color,fontWeight: FontWeight.bold)),
-        subtitle: Text(value, style: const TextStyle(color: Colors.blue,fontWeight: FontWeight.bold)),
-        trailing: enabled ? Icon(Icons.edit, size: 18, color: color) : null,
+        leading: Container(width: 38, height: 38, decoration: const BoxDecoration(color: Color(0xFFEAF4EE), shape: BoxShape.circle), child: Icon(icon, color: color, size: 19)),
+        title: Text(title, style: const TextStyle(color: Color(0xFF75827B), fontSize: 10)),
+        subtitle: Text(value, style: const TextStyle(color: Color(0xFF26362E), fontSize: 13, fontWeight: FontWeight.w600)),
+        trailing: enabled ? const Icon(Icons.edit_outlined, size: 17, color: Color(0xFF87928C)) : null,
         onTap: enabled ? onTap : null,
       ),
     );

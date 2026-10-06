@@ -59,10 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF075E54),
-              Color(0xFF25D366),
-            ],
+          colors: [Color(0xFFE8F4ED), Color(0xFFF6F8F6)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -92,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: const Color(0xFF17251F),
                         ),
                       ),
 
@@ -103,11 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? 'Create an account with your phone number'
                             : 'Login with your phone number',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontStyle: FontStyle.italic,
-                        ),
+                        style: const TextStyle(color: Color(0xFF75827B), fontSize: 13),
                       ),
 
                       const SizedBox(height: 30),
@@ -137,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             height: 56,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: const Color(0xFFF0F4F1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: CountryCodePicker(
@@ -219,10 +212,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color.fromARGB(255, 4, 230, 11),
+                            backgroundColor: const Color(0xFF168A62),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                           child: _isLoading
@@ -258,21 +250,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           _isRegister
                               ? 'Already have an account? Login'
                               : 'New to Voxa? Create an account',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                            style: const TextStyle(color: Color(0xFF168A62), fontWeight: FontWeight.w700),
                         ),
                       ),
 
                       const Text(
                         'By continuing you agree to our Terms & Privacy Policy',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                        style: const TextStyle(color: Color(0xFF87928C), fontSize: 10),
                       ),
                     ],
                   ),
@@ -292,18 +277,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: const Color(0xFFF0F4F1),
       hintText: hint,
       prefixIcon: Icon(icon),
       suffixIcon: suffixIcon,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       errorStyle: const TextStyle(
-        color: Colors.yellow,
-        fontWeight: FontWeight.bold,
-        fontSize: 15,
+        color: Color(0xFFB42318),
+        fontWeight: FontWeight.w500,
+        fontSize: 11,
       ),
     );
   }

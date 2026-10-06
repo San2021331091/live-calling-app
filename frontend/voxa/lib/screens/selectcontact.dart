@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/pages/groupchatpage.dart';
@@ -97,20 +96,20 @@ class _SelectContactState extends State<SelectContact> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        leading: const BackButton(color: Colors.white),
+        leading: const BackButton(color: Color(0xFF17251F)),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               "Select contact",
-              style: TextStyle(fontSize: 18, color: Colors.white),
+              style: TextStyle(fontSize: 18, color: Color(0xFF17251F), fontWeight: FontWeight.w700),
             ),
             SizedBox(height: 2),
             Text(
               isLoading ? 'Loading accounts...' : '${users.length} Voxa accounts',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white70,
+                color: Color(0xFF75827B),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -119,13 +118,13 @@ class _SelectContactState extends State<SelectContact> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            color: Colors.white,
+            color: const Color(0xFF17251F),
             onPressed: _loadUsers,
           ),
           const SizedBox(width: 12),
           PopupMenuButton<String>(
-            color: AppColor.dartTealGreen,
-            icon: const Icon(Icons.more_vert, color: Colors.white),
+            color: Colors.white,
+            icon: const Icon(Icons.more_vert, color: Color(0xFF17251F)),
             onSelected: (value) {
               switch (value) {
                 case 'invite':
@@ -149,20 +148,20 @@ class _SelectContactState extends State<SelectContact> {
                 value: 'invite',
                 child: Text(
                   'Invite a friend',
-                  style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: Color(0xFF17251F)),
                 ),
               ),
               PopupMenuItem(
                 value: 'contacts',
-                child: Text('Contacts', style: TextStyle(color: Colors.white)),
+                child: Text('Contacts', style: TextStyle(color: Color(0xFF17251F))),
               ),
               PopupMenuItem(
                 value: 'refresh',
-                child: Text('Refresh', style: TextStyle(color: Colors.white)),
+                child: Text('Refresh', style: TextStyle(color: Color(0xFF17251F))),
               ),
               PopupMenuItem(
                 value: 'help',
-                child: Text('Help', style: TextStyle(color: Colors.white)),
+                child: Text('Help', style: TextStyle(color: Color(0xFF17251F))),
               ),
             ],
           ),
@@ -170,7 +169,7 @@ class _SelectContactState extends State<SelectContact> {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
+              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -229,14 +228,14 @@ class _SelectContactState extends State<SelectContact> {
       onTap: onTap,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColor.lightGreen,
-          child: Icon(icon, color: Colors.white),
+          backgroundColor: const Color(0xFFE8F3ED),
+          child: Icon(icon, color: const Color(0xFF168A62)),
         ),
         title: Text(
           title,
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            color: Colors.red,
+            color: Color(0xFF17251F),
           ),
         ),
       ),
@@ -246,8 +245,8 @@ class _SelectContactState extends State<SelectContact> {
   Widget _userTile(UserModel user) {
     return ListTile(
       leading: const CircleAvatar(
-        backgroundColor: Colors.blue,
-        child: Icon(Icons.person, color: Colors.white),
+        backgroundColor: const Color(0xFFE8F3ED),
+        child: const Icon(Icons.person, color: Color(0xFF168A62)),
       ),
       title: Text(user.name),
       subtitle: Text(user.phone),

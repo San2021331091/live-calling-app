@@ -41,33 +41,37 @@ class ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: Container(
-        width: 56,
-        height: 56,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [
-              Color.fromARGB(255, 11, 187, 17),
-              Color.fromARGB(255, 16, 134, 230),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: FloatingActionButton(
-          onPressed: () {
+      backgroundColor: const Color(0xFFF5F7F5),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (builder) => const SelectContact()),
             ).then((_) => _loadChats());
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.chat, color: Colors.white),
-        ),
+        },
+        backgroundColor: const Color(0xFF168A62),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.edit_rounded),
+        label: const Text('New chat'),
       ),
-      body: _isLoading && chats.isEmpty
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+            child: Row(children: [
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Messages', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF17251F), letterSpacing: -0.4)),
+                SizedBox(height: 4),
+                Text('Your conversations, all in one place', style: TextStyle(fontSize: 11, color: Color(0xFF75827B))),
+              ])),
+              if (chats.isNotEmpty) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: const Color(0xFFE6F3ED), borderRadius: BorderRadius.circular(20)),
+                child: Text('${chats.length}', style: const TextStyle(color: Color(0xFF168A62), fontWeight: FontWeight.w700, fontSize: 11)),
+              ),
+            ]),
+          ),
+          Expanded(child: _isLoading && chats.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : _error != null && chats.isEmpty
           ? Center(
@@ -87,19 +91,29 @@ class ChatPageState extends State<ChatPage> {
               ),
             )
           : RefreshIndicator(
+              color: const Color(0xFF168A62),
               onRefresh: _loadChats,
               child: chats.isEmpty
                   ? ListView(
-                      children: const [
-                        SizedBox(height: 180),
-                        Center(child: Text('No chats yet. Start a conversation.')),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 95),
+                        Icon(Icons.forum_outlined, size: 54, color: Colors.green.shade200),
+                        const SizedBox(height: 14),
+                        const Center(child: Text('Your inbox is quiet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF26362E)))),
+                        const SizedBox(height: 6),
+                        const Center(child: Text('Start a conversation to see it here.', style: TextStyle(fontSize: 11, color: Color(0xFF75827B)))),
                       ],
                     )
                   : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 4, bottom: 90),
                       itemCount: chats.length,
                       itemBuilder: (context, index) =>
                           CustomCard(chatModel: chats[index]),
                     ),
+          )),
+        ],
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/colors/colors.dart';
 import 'dart:async';
 import 'package:voxa/screens/loginscreen.dart';
 
@@ -48,11 +47,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColor.lightGreen,AppColor.tealGreen], 
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: const Color(0xFFF4F8F5),
         ),
         child: Center(
           child: Column(
@@ -68,9 +63,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     color: Colors.white,
                   ),
                   child: const Icon(
-                    Icons.call, 
+                    Icons.forum_rounded,
                     size: 80,
-                    color: Color(0xFF128C7E),
+                    color: Color(0xFF168A62),
                   ),
                 ),
               ),
@@ -78,7 +73,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               const Text(
                 "Voxa",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF17251F),
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,

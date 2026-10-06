@@ -6,11 +6,8 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:marquee/marquee.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/message_model.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -192,36 +189,28 @@ class _IndividualPageState extends State<IndividualPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7F5),
       body: Column(
         children: [
           // HEADER
           Container(
-            height: 90,
-            padding: const EdgeInsets.only(top: 35, left: 8, right: 8),
+            height: 68,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColor.dartTealGreen, AppColor.lightGreen],
-              ),
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE8ECE9))),
             ),
             child: Row(
               children: [
                 InkWell(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                  child: const Icon(Icons.arrow_back_rounded, color: Color(0xFF34433B)),
                 ),
                 const SizedBox(width: 12),
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: Colors.blueGrey,
-                  child: SvgPicture.asset(
-                    widget.chatModel.isGroup!
-                        ? "assets/groups.svg"
-                        : "assets/persons.svg",
-                    height: 34,
-                    width: 34,
-                  ),
+                  backgroundColor: const Color(0xFFE8F3ED),
+                  child: Icon(widget.chatModel.isGroup == true ? Icons.groups_2_rounded : Icons.person_rounded, color: const Color(0xFF168A62), size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -232,29 +221,15 @@ class _IndividualPageState extends State<IndividualPage> {
                       Text(
                         widget.chatModel.name,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18.5,
-                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF17251F),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      SizedBox(
-                        height: 16,
-                        child: Marquee(
-                          text: "last seen today at 12:00 PM",
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          velocity: 20.0,
-                          pauseAfterRound: const Duration(seconds: 1),
-                          startPadding: 0.0,
-                          blankSpace: 20.0,
-                        ),
-                      ),
+                      Text(widget.chatModel.isGroup == true ? 'Group conversation' : (widget.chatModel.peerPhone ?? 'Conversation'), style: const TextStyle(color: Color(0xFF75827B), fontSize: 10.5)),
                     ],
                   ),
                 ),
@@ -262,15 +237,15 @@ class _IndividualPageState extends State<IndividualPage> {
                   children: [
                     IconButton(
                       onPressed: () => _startCall(CallMedia.video),
-                      icon: const Icon(Icons.videocam, color: Colors.white),
+                      icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
                     ),
                     IconButton(
                       onPressed: () => _startCall(CallMedia.audio),
-                      icon: const Icon(Icons.call, color: Colors.white),
+                      icon: const Icon(Icons.call_outlined, color: Color(0xFF168A62)),
                     ),
                     PopupMenuButton<String>(
-                      color: AppColor.dartTealGreen,
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      color: Colors.white,
+                      icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF536159)),
                       onSelected: (value) {
                         switch (value) {
                           case "View Contact":
@@ -298,28 +273,28 @@ class _IndividualPageState extends State<IndividualPage> {
                             value: "View Contact",
                             child: Text(
                               "View Contact",
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(color: Color(0xFF26362E)),
                             ),
                           ),
                           const PopupMenuItem(
                             value: "Media, Links, and Docs",
                             child: Text(
                               "Media, Links, and Docs",
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(color: Color(0xFF26362E)),
                             ),
                           ),
                           const PopupMenuItem(
                             value: "Search",
                             child: Text(
                               "Search",
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(color: Color(0xFF26362E)),
                             ),
                           ),
                           const PopupMenuItem(
                             value: "Mute Notifications",
                             child: Text(
                               "Mute Notifications",
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(color: Color(0xFF26362E)),
                             ),
                           ),
                         ];
@@ -333,16 +308,7 @@ class _IndividualPageState extends State<IndividualPage> {
           // BODY - Chat area (Gradient Background)
           Expanded(
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppColor.lightGreen, // light green
-                    AppColor.dartTealGreen, // dark green
-                  ],
-                ),
-              ),
+              color: const Color(0xFFF4F7F5),
               child: Column(
                 children: [
                   if (_chatError != null)
@@ -379,10 +345,14 @@ class _IndividualPageState extends State<IndividualPage> {
                                   margin:
                                       const EdgeInsets.symmetric(vertical: 5),
                                   decoration: BoxDecoration(
-                                    color: message.isMe
-                                        ? AppColor.dartTealGreen
-                                        : Colors.indigo,
-                                    borderRadius: BorderRadius.circular(8),
+                                    color: message.isMe ? const Color(0xFFDDF4E7) : Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(18),
+                                      topRight: const Radius.circular(18),
+                                      bottomLeft: Radius.circular(message.isMe ? 18 : 5),
+                                      bottomRight: Radius.circular(message.isMe ? 5 : 18),
+                                    ),
+                                    boxShadow: const [BoxShadow(color: Color(0x0A17251F), blurRadius: 10, offset: Offset(0, 3))],
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -393,7 +363,7 @@ class _IndividualPageState extends State<IndividualPage> {
                                         Text(
                                           message.sender,
                                           style: const TextStyle(
-                                            color: Colors.white70,
+                                            color: Color(0xFF168A62),
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -403,7 +373,7 @@ class _IndividualPageState extends State<IndividualPage> {
                                         child: Text(
                                           message.time,
                                           style: const TextStyle(
-                                            color: Colors.white70,
+                                            color: Color(0xFF849089),
                                             fontSize: 10,
                                           ),
                                         ),
@@ -421,7 +391,7 @@ class _IndividualPageState extends State<IndividualPage> {
           ),
 
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             color: Colors.white,
             child: Row(
               children: [
@@ -430,8 +400,8 @@ class _IndividualPageState extends State<IndividualPage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(40),
+                      color: const Color(0xFFF0F4F1),
+                      borderRadius: BorderRadius.circular(28),
                     ),
                     child: Row(
                       children: [
@@ -511,7 +481,7 @@ class _IndividualPageState extends State<IndividualPage> {
                 // Mic / Send button
                 CircleAvatar(
                   radius: 25,
-                  backgroundColor: AppColor.dartTealGreen,
+                  backgroundColor: const Color(0xFF168A62),
                   child: IconButton(
                     icon: Icon(
                       isTyping ? Icons.send : Icons.mic,
@@ -571,7 +541,7 @@ class _IndividualPageState extends State<IndividualPage> {
       height: 300,
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-        color: AppColor.dartTealGreen,
+        color: Colors.white,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -585,7 +555,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.insert_drive_file,
                 label: "Document",
-                color: Colors.indigo,
+                color: const Color(0xFF6078D8),
                 onTap: () {
                   Navigator.pop(context);
                   pickDocument();
@@ -594,7 +564,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.camera_alt,
                 label: "Camera",
-                color: Colors.pink,
+                color: const Color(0xFFDB6990),
                 onTap: () {
                   Navigator.pop(context);
                   openCamera();
@@ -603,7 +573,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.photo,
                 label: "Gallery",
-                color: Colors.purple,
+                color: const Color(0xFF8C6CD3),
                 onTap: () {
                   Navigator.pop(context);
                   pickImage();
@@ -620,7 +590,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.headphones,
                 label: "Audio",
-                color: Colors.orange,
+                color: const Color(0xFFDA9654),
                 onTap: () {
                   Navigator.pop(context);
                   pickAudio();
@@ -629,7 +599,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.location_on,
                 label: "Location",
-                color: Colors.green,
+                color: const Color(0xFF168A62),
                 onTap: () {
                   Navigator.pop(context);
                   shareLocation();
@@ -638,7 +608,7 @@ class _IndividualPageState extends State<IndividualPage> {
               _attachmentItem(
                 icon: Icons.person,
                 label: "Contact",
-                color: Colors.blue,
+                color: const Color(0xFF578FA8),
                 onTap: () {
                   Navigator.pop(context);
                   openContactPicker();
@@ -652,12 +622,12 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   Widget _messageContent(MessageModel message) {
-    if (message.mediaUrl == null) return Text(message.message, style: const TextStyle(color: Colors.white));
+    if (message.mediaUrl == null) return Text(message.message, style: const TextStyle(color: Color(0xFF26362E)));
     if (message.mediaType == 'image') {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(message.mediaUrl!, width: 220, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white))),
-        if (message.message.isNotEmpty && message.message != 'Image') Text(message.message, style: const TextStyle(color: Colors.white)),
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Color(0xFF75827B)))),
+        if (message.message.isNotEmpty && message.message != 'Image') Text(message.message, style: const TextStyle(color: Color(0xFF26362E))),
       ]);
     }
     return InkWell(onTap: () {
@@ -667,8 +637,8 @@ class _IndividualPageState extends State<IndividualPage> {
         showDialog<void>(context: context, builder: (_) => AlertDialog(title: Text(message.mediaName ?? 'Attachment'), content: SelectableText(message.mediaUrl!)));
       }
     }, child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file, color: Colors.white),
-      const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message, style: const TextStyle(color: Colors.white))),
+      Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file, color: const Color(0xFF168A62)),
+      const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message, style: const TextStyle(color: Color(0xFF26362E)))),
     ]));
   }
 
@@ -702,7 +672,7 @@ class _IndividualPageState extends State<IndividualPage> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontSize: 13, color: Colors.white),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF35433C)),
           ),
         ],
       ),

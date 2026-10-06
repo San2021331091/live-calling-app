@@ -46,7 +46,7 @@ class _CallListScreenState extends State<CallListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffE8F5F9),
+      backgroundColor: const Color(0xFFF5F7F5),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -67,7 +67,15 @@ class _CallListScreenState extends State<CallListScreen> {
               ),
             )
           : calls.isEmpty
-          ? const Center(child: Text('No calls yet'))
+          ? Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 68, height: 68, decoration: const BoxDecoration(color: Color(0xFFE6F3ED), shape: BoxShape.circle), child: const Icon(Icons.call_outlined, color: Color(0xFF168A62), size: 30)),
+                const SizedBox(height: 14),
+                const Text('No calls yet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF17251F))),
+                const SizedBox(height: 5),
+                const Text('Your calls will show up here', style: TextStyle(fontSize: 11, color: Color(0xFF75827B))),
+              ])
+            )
           : ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: calls.length,
@@ -75,10 +83,11 @@ class _CallListScreenState extends State<CallListScreen> {
                 return _callTile(calls[index]);
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.deepOrangeAccent,
-        elevation: 4,
-        child: const Icon(Icons.add_call, color: Colors.white),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF168A62),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_call),
+        label: const Text('New call'),
         onPressed: () {
           Navigator.push(
             context,
@@ -93,12 +102,11 @@ class _CallListScreenState extends State<CallListScreen> {
 
   Widget _callTile(CallModel call) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
       child: Material(
         borderRadius: BorderRadius.circular(16),
         color: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.orange,
+        elevation: 0,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _showCallDetails(call),
@@ -106,10 +114,7 @@ class _CallListScreenState extends State<CallListScreen> {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundImage: NetworkImage(call.avatar),
-                ),
+                CircleAvatar(radius: 25, backgroundColor: const Color(0xFFE8F3ED), child: const Icon(Icons.person_rounded, color: Color(0xFF168A62))),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -118,7 +123,7 @@ class _CallListScreenState extends State<CallListScreen> {
                       Text(
                         call.name,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: _nameColor(call.type),
                         ),
@@ -144,7 +149,7 @@ class _CallListScreenState extends State<CallListScreen> {
                             _formatTime(call.time),
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Colors.purpleAccent,
+                              color: const Color(0xFF849089),
                             ),
                           ),
                         ],
@@ -182,7 +187,7 @@ class _CallListScreenState extends State<CallListScreen> {
       case CallType.missed:
         return Colors.redAccent;
       case CallType.outgoing:
-        return Colors.deepOrange;
+        return const Color(0xFF168A62);
       case CallType.incoming:
         return Colors.teal;
     }
@@ -204,7 +209,7 @@ class _CallListScreenState extends State<CallListScreen> {
       case CallType.missed:
         return Colors.redAccent;
       case CallType.outgoing:
-        return Colors.deepOrange;
+        return const Color(0xFF168A62);
       case CallType.incoming:
         return Colors.teal;
     }
@@ -280,10 +285,7 @@ class _CallListScreenState extends State<CallListScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 42,
-                backgroundImage: NetworkImage(call.avatar),
-              ),
+              CircleAvatar(radius: 42, backgroundColor: const Color(0xFFE8F3ED), child: const Icon(Icons.person_rounded, color: Color(0xFF168A62), size: 38)),
               const SizedBox(height: 14),
               Text(
                 call.name,
@@ -307,12 +309,12 @@ class _CallListScreenState extends State<CallListScreen> {
                   _actionIcon(
                     Icons.call,
                     () => _startCall(call, media: CallMedia.audio),
-                    Colors.greenAccent,
+                    const Color(0xFF168A62),
                   ),
                   _actionIcon(
                     Icons.videocam,
                     () => _startCall(call, media: CallMedia.video),
-                    Colors.orangeAccent,
+                    const Color(0xFF168A62),
                   ),
 
                   IconButton(
@@ -351,6 +353,6 @@ class _CallListScreenState extends State<CallListScreen> {
   }
 
   Color _buttonBackground(CallMedia media) {
-    return media == CallMedia.video ? Colors.orangeAccent : Colors.green;
+    return const Color(0xFF168A62);
   }
 }

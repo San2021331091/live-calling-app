@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:voxa/colors/colors.dart';
 
 class CreateContactPage extends StatefulWidget {
   const CreateContactPage({super.key});
@@ -55,7 +54,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue,
+                  color: const Color(0xFF17251F),
                 ),
               ),
               const SizedBox(height: 20),
@@ -99,7 +98,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
           borderRadius: BorderRadius.circular(50),
           child: CircleAvatar(
             radius: 28,
-            backgroundColor: AppColor.dartTealGreen,
+            backgroundColor: const Color(0xFF168A62),
             child: Icon(icon, color: Colors.white),
           ),
         ),
@@ -112,16 +111,17 @@ class _CreateContactPageState extends State<CreateContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7F5),
 
       appBar: AppBar(
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF17251F),
+        backgroundColor: const Color(0xFFF5F7F5),
         title: const Text(
           "Create new contact",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: const Color(0xFF17251F),
           ),
         ),
         actions: [
@@ -132,7 +132,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
             child: const Text(
               "SAVE",
               style: TextStyle(
-                color: Colors.yellow,
+                color: Color(0xFF168A62),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -141,7 +141,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
+              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -159,7 +159,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.pink,
+                    backgroundColor: const Color(0xFFDCE9E1),
                     backgroundImage: _profileImage != null
                         ? FileImage(_profileImage!)
                         : null,
@@ -167,7 +167,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
                         ? const Icon(
                             Icons.person,
                             size: 50,
-                            color: Colors.white,
+                            color: Color(0xFF168A62),
                           )
                         : null,
                   ),
@@ -178,7 +178,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
                       onTap: _showImageSourcePopup,
                       child: CircleAvatar(
                         radius: 16,
-                        backgroundColor: AppColor.lightGreen,
+                        backgroundColor: const Color(0xFF168A62),
                         child: const Icon(
                           Icons.camera_alt,
                           size: 18,
@@ -198,7 +198,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
               controller: _firstName,
               label: "First name",
               icon: Icons.person_outline,
-              color: Colors.deepOrange,
             ),
 
             const SizedBox(height: 20),
@@ -208,7 +207,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
               controller: _lastName,
               label: "Last name",
               icon: Icons.badge_outlined,
-              color: Colors.purple,
             ),
 
             const SizedBox(height: 20),
@@ -218,7 +216,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
               controller: _phone,
               label: "Phone number",
               icon: Icons.phone_android,
-              color: Colors.blue,
               keyboard: TextInputType.phone,
             ),
 
@@ -227,7 +224,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
             const Text(
               "This contact will be saved to your device",
               style: TextStyle(
-                color: Colors.green,
+                color: Color(0xFF68776F),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -242,30 +239,26 @@ class _CreateContactPageState extends State<CreateContactPage> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    required Color color,
     TextInputType keyboard = TextInputType.text,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboard,
-      style: TextStyle(
-        color: color,
-        fontWeight: FontWeight.bold,
-      ),
+      style: const TextStyle(color: Color(0xFF17251F)),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: color),
+        prefixIcon: Icon(icon, color: const Color(0xFF168A62)),
         labelText: label,
         labelStyle: TextStyle(
-          color: color,
+          color: const Color(0xFF68776F),
           fontWeight: FontWeight.w600,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color),
+          borderSide: const BorderSide(color: Color(0xFFDCE4DE)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color, width: 2),
+          borderSide: const BorderSide(color: Color(0xFF168A62), width: 1.5),
         ),
       ),
     );

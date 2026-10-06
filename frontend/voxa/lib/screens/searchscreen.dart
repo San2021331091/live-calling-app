@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/screens/userprofilescreen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -72,15 +71,15 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: AppColor.dartTealGreen,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF9FBF9),
+        foregroundColor: const Color(0xFF17251F),
         title: _buildSearchBar(),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: filteredContacts.isEmpty
             ? const Center(
                 child: Text(
@@ -105,30 +104,19 @@ class _SearchScreenState extends State<SearchScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(40),
-        gradient: const LinearGradient(
-          colors: [AppColor.lightGreen, AppColor.dartTealGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: const Color(0xFFF0F4F1),
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: Colors.white),
+          const Icon(Icons.search_rounded, color: Color(0xFF75827B)),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Color(0xFF26362E)),
               decoration: const InputDecoration(
                 hintText: "Search by name or phone...",
-                hintStyle: TextStyle(color: Colors.white70),
+                hintStyle: TextStyle(color: Color(0xFF87928C)),
                 border: InputBorder.none,
               ),
               keyboardType: TextInputType.text,
@@ -137,7 +125,7 @@ class _SearchScreenState extends State<SearchScreen> {
           if (isSearching)
             GestureDetector(
               onTap: () => _searchController.clear(),
-              child: const Icon(Icons.close, color: Colors.redAccent),
+              child: const Icon(Icons.close, color: Color(0xFF75827B)),
             ),
         ],
       ),
@@ -146,16 +134,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildContactCard(Map<String, String> contact) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 0,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.green.shade400,
+          backgroundColor: const Color(0xFFE6F3ED),
           child: Text(
             contact["name"]![0].toUpperCase(),
             style: const TextStyle(
-              color: Color.fromARGB(255, 242, 230, 230),
+              color: const Color(0xFF168A62),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -164,15 +152,15 @@ class _SearchScreenState extends State<SearchScreen> {
           contact["name"]!,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
-            color: Colors.pink,
+            color: const Color(0xFF17251F),
           ),
         ),
         subtitle: Text(
           "${contact["phone"]} ${contact["info"]}",
-          style: const TextStyle(color: Colors.purple),
+          style: const TextStyle(color: Color(0xFF75827B), fontSize: 11),
         ),
         trailing: IconButton(
-          icon: Icon(Icons.info_outline, color: AppColor.tealGreen),
+          icon: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF87928C), size: 15),
           onPressed: () {
             Navigator.push(
               context,

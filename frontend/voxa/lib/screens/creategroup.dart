@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/pages/addnewgroup.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/services/api_client.dart';
@@ -54,29 +53,23 @@ class _CreateGroupState extends State<CreateGroup> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Colors.white),
+        leading: const BackButton(color: Color(0xFF35433C)),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("New group",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,color: Colors.white)),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Color(0xFF17251F))),
             SizedBox(height: 2),
             Text("Add participants",
-                style: TextStyle(fontSize: 12, color: Colors.white70,fontWeight:FontWeight.bold)),
+                style: TextStyle(fontSize: 11, color: Color(0xFF75827B))),
           ],
         ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
-            ),
-          ),
-        ),
+        backgroundColor: const Color(0xFFF9FBF9),
       ),
 
       floatingActionButton: selectedUsers.isNotEmpty
           ? FloatingActionButton(
-              backgroundColor: AppColor.lightGreen,
+              backgroundColor: const Color(0xFF168A62),
               onPressed: _continue,
               child: const Icon(Icons.arrow_forward, color: Colors.white),
             )
@@ -106,8 +99,8 @@ class _CreateGroupState extends State<CreateGroup> {
                   children: [
                     const CircleAvatar(
                       radius: 24,
-                      backgroundColor: Color.fromRGBO(33, 150, 243, 1),
-                      child: Icon(Icons.person, color: Colors.white),
+                      backgroundColor: Color(0xFFE8F3ED),
+                      child: Icon(Icons.person, color: Color(0xFF168A62)),
                     ),
                     Positioned(
                       bottom: -2,
@@ -118,7 +111,7 @@ class _CreateGroupState extends State<CreateGroup> {
                         },
                         child: const CircleAvatar(
                           radius: 10,
-                          backgroundColor: Colors.red,
+                          backgroundColor: Color(0xFFDB6B6B),
                           child:
                               Icon(Icons.close, size: 14, color: Colors.white),
                         ),
@@ -131,7 +124,7 @@ class _CreateGroupState extends State<CreateGroup> {
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: Colors.deepPurple)),
+                        color: Color(0xFF35433C))),
               ],
             ),
           );
@@ -165,8 +158,8 @@ class _CreateGroupState extends State<CreateGroup> {
           leading: Stack(
             children: [
               const CircleAvatar(
-                backgroundColor: Colors.blue,
-                child: Icon(Icons.person, color: Colors.white),
+                backgroundColor: Color(0xFFE8F3ED),
+                child: Icon(Icons.person, color: Color(0xFF168A62)),
               ),
               if (isSelected)
                 const Positioned(
@@ -174,7 +167,7 @@ class _CreateGroupState extends State<CreateGroup> {
                   right: 0,
                   child: CircleAvatar(
                     radius: 10,
-                    backgroundColor: AppColor.lightGreen,
+                    backgroundColor: Color(0xFF168A62),
                     child:
                         Icon(Icons.check, size: 14, color: Colors.white),
                   ),
@@ -183,13 +176,13 @@ class _CreateGroupState extends State<CreateGroup> {
           ),
           title: Text(contact.name,
               style: const TextStyle(
-                  color: Colors.deepOrange,
+                  color: Color(0xFF17251F),
                   fontWeight: FontWeight.w600)),
           subtitle: Text(contact.phone,
               style: const TextStyle(
-                  color: Colors.green,
+                  color: Color(0xFF75827B),
                   fontWeight: FontWeight.w600,
-                  fontStyle: FontStyle.italic)),
+                  )),
           onTap: () {
             setState(() {
               isSelected

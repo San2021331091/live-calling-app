@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/services/api_client.dart';
@@ -171,11 +170,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColor.dartTealGreen, AppColor.lightGreen],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFF168A62),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white, size: 30),
@@ -191,16 +186,16 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Colors.white),
+        leading: const BackButton(color: Color(0xFF17251F)),
         title: const Text(
           "New Community",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
         ),
         elevation: 0,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
+              colors: [Color(0xFFF5F7F5), Color(0xFFF5F7F5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -217,7 +212,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.purple,
+                color: Color(0xFF168A62),
               ),
             ),
             const SizedBox(height: 30),
@@ -227,7 +222,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
               onTap: _showImageSourceOptions,
               child: CircleAvatar(
                 radius: 60,
-                backgroundColor: Colors.grey.shade300,
+                backgroundColor: const Color(0xFFDCE9E1),
                 backgroundImage: _communityImage != null
                     ? FileImage(_communityImage!)
                     : null,
@@ -235,7 +230,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                     ? const Icon(
                         Icons.camera_alt,
                         size: 40,
-                        color: Colors.white,
+                        color: Color(0xFF168A62),
                       )
                     : null,
               ),
@@ -247,7 +242,12 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: "Community Name",
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderSide: BorderSide.none,
+                ),
                 prefixIcon: Icon(Icons.group),
               ),
             ),
@@ -263,7 +263,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.teal,
+                      color: Color(0xFF17251F),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -297,8 +297,9 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                                 user.id,
                               );
                               return ListTile(
-                                leading: const CircleAvatar(
-                                  child: Icon(Icons.person),
+                                  leading: const CircleAvatar(
+                                  backgroundColor: Color(0xFFE8F3ED),
+                                  child: Icon(Icons.person, color: Color(0xFF168A62)),
                                 ),
                                 title: Text(user.name),
                                 subtitle: Text(user.phone),
@@ -337,7 +338,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
               child: ElevatedButton(
                 onPressed: _isCreating ? null : _createCommunity,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColor.tealGreen,
+                  backgroundColor: const Color(0xFF168A62),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

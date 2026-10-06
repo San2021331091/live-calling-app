@@ -60,12 +60,12 @@ class _CommunityPageState extends State<CommunityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffECE5DD),
+      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
-        backgroundColor: const Color(0xff075E54),
+        backgroundColor: Colors.white,
         title: const Text(
           "My Communities",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -85,7 +85,7 @@ class _CommunityPageState extends State<CommunityPage> {
               children: [
                 const CircleAvatar(
                   radius: 24,
-                  backgroundColor: Color(0xff25D366),
+                  backgroundColor: Color(0xFF168A62),
                   child: Icon(Icons.add, color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 16),
@@ -98,13 +98,13 @@ class _CommunityPageState extends State<CommunityPage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.blue,
+                          color: Color(0xFF17251F),
                         ),
                       ),
                       SizedBox(height: 4),
                       Text(
                         "Bring your groups together",
-                        style: TextStyle(fontSize: 14, color: Colors.pink),
+                        style: TextStyle(fontSize: 11, color: Color(0xFF75827B)),
                       ),
                     ],
                   ),
@@ -153,18 +153,18 @@ class _CommunityPageState extends State<CommunityPage> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: ListTile(
                   leading: const CircleAvatar(
-                    backgroundColor: Color(0xff25D366),
+                    backgroundColor: Color(0xFF168A62),
                     radius: 24,
                     child: Icon(Icons.groups, color: Colors.white),
                   ),
                   title: Text(
                     community.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, color: Colors.deepOrange),
+                        fontWeight: FontWeight.w600, color: Color(0xFF26362E)),
                   ),
                   subtitle: Text(
                     community.about ?? 'Community chat',
-                    style: const TextStyle(color: Colors.purple,fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Color(0xFF75827B),fontSize: 11),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openCommunity(community),

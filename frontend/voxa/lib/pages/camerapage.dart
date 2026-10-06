@@ -115,58 +115,56 @@ class _CameraPageState extends State<CameraPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          CameraPreview(_controller!),
-
-          /// TOP BAR
-          Positioned(
-            top: 40,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _circleButton(Icons.close, () => Navigator.pop(context)),
-                _circleButton(
-                  flashMode == FlashMode.off
-                      ? Icons.flash_off
-                      : Icons.flash_on,
-                  _toggleFlash,
-                ),
-              ],
-            ),
-          ),
-
-          /// BOTTOM CONTROLS
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _circleButton(Icons.photo, _pickFromGallery),
-
-                /// CAPTURE BUTTON
-                InkWell(
-                  borderRadius: BorderRadius.circular(50),
-                  onTap: _capturePhoto,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 5,
-                      ),
-                    ),
+          Positioned.fill(child: CameraPreview(_controller!)),
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0, 0.22, 0.62, 1],
+                    colors: [Color(0x99000000), Colors.transparent, Colors.transparent, Color(0xCC000000)],
                   ),
                 ),
-
-                _circleButton(Icons.videocam, _captureVideo),
-
-                _circleButton(Icons.cameraswitch, _switchCamera),
-              ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+              child: Column(
+                children: [
+                  Row(children: [
+                    _circleButton(Icons.close_rounded, () => Navigator.pop(context)),
+                    const Expanded(child: Column(children: [
+                      Text('CREATE UPDATE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                      SizedBox(height: 3),
+                      Text('Capture a moment', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ])),
+                    _circleButton(flashMode == FlashMode.off ? Icons.flash_off_rounded : Icons.flash_on_rounded, _toggleFlash),
+                  ]),
+                  const Spacer(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _bottomAction(Icons.photo_library_outlined, 'GALLERY', _pickFromGallery),
+                      GestureDetector(
+                        onTap: _capturePhoto,
+                        child: Container(
+                          width: 78, height: 78, padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+                          child: Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white)),
+                        ),
+                      ),
+                      _bottomAction(Icons.videocam_outlined, 'VIDEO', _captureVideo),
+                      _bottomAction(Icons.cameraswitch_rounded, 'FLIP', _switchCamera),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ],
@@ -178,11 +176,22 @@ class _CameraPageState extends State<CameraPage> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(30),
-      child: CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.black54,
-        child: Icon(icon, color: Colors.white),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle, border: Border.all(color: Colors.white24)),
+        child: Icon(icon, color: Colors.white, size: 21),
       ),
     );
   }
+
+  Widget _bottomAction(IconData icon, String label, VoidCallback onTap) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
+    child: SizedBox(width: 62, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: Colors.white, size: 25),
+      const SizedBox(height: 7),
+      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.7)),
+    ])),
+  );
 }

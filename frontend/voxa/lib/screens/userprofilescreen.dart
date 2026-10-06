@@ -24,23 +24,14 @@ class UserProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
         title: const Text(
           "Contact Info",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF17251F),
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xff128C7E), Color(0xff25D366)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
       ),
       body: Column(
         children: [
@@ -48,30 +39,24 @@ class UserProfileScreen extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xff128C7E), Color(0xff25D366)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+            decoration: const BoxDecoration(color: Colors.white),
             child: Column(
               children: [
                 CircleAvatar(
                   radius: 50,
-                  backgroundColor: Colors.white,
+                  backgroundColor: const Color(0xFFE8F3ED),
                   backgroundImage: imageUrl != null
                       ? NetworkImage(imageUrl!)
                       : null,
                   child: imageUrl == null
-                      ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                      ? const Icon(Icons.person, size: 50, color: Color(0xFF168A62))
                       : null,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   name,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: const Color(0xFF17251F),
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
@@ -79,13 +64,13 @@ class UserProfileScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   status,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(color: Color(0xFF536159), fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   lastSeen,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(color: Color(0xFF87928C), fontSize: 10),
                 ),
               ],
             ),
@@ -99,7 +84,7 @@ class UserProfileScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _actionButton(Icons.message, "Message", Colors.teal, () {
+                _actionButton(Icons.message_outlined, "Message", const Color(0xFF168A62), () {
                   ChatModel chat = ChatModel(
                     name: name,
                     img: imageUrl!,
@@ -112,10 +97,10 @@ class UserProfileScreen extends StatelessWidget {
                     ),
                   );
                 }),
-                _actionButton(Icons.call, "Call", Colors.green, () {
+                _actionButton(Icons.call_outlined, "Call", const Color(0xFF168A62), () {
                   _startCall(context, CallMedia.audio);
                 }),
-                _actionButton(Icons.videocam, "Video", Colors.blue, () {
+                _actionButton(Icons.videocam_outlined, "Video", const Color(0xFF168A62), () {
                   _startCall(context, CallMedia.video);
                 }),
               ],
@@ -188,7 +173,7 @@ class UserProfileScreen extends StatelessWidget {
           child: CircleAvatar(
             radius: 28,
             backgroundColor: color,
-            child: Icon(icon, color: Colors.white),
+          child: Icon(icon, color: Colors.white),
           ),
         ),
         const SizedBox(height: 6),
@@ -206,23 +191,23 @@ class UserProfileScreen extends StatelessWidget {
 
   Widget _infoTile(IconData icon, String title, String value) {
     return Card(
-      elevation: 2,
+      elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ListTile(
-        leading: Icon(icon, color: Colors.teal),
+        leading: Container(width: 36, height: 36, decoration: const BoxDecoration(color: Color(0xFFEAF4EE), shape: BoxShape.circle), child: Icon(icon, color: const Color(0xFF168A62), size: 18)),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.pink,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF75827B),
           ),
         ),
         subtitle: Text(
           value,
           style: const TextStyle(
-            color: Colors.deepOrange,
-            fontWeight: FontWeight.bold,
+            color: Color(0xFF26362E),
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/services/api_client.dart';
@@ -103,7 +102,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue
+                  color: Color(0xFF17251F)
                 ),
               ),
               const SizedBox(height: 20),
@@ -147,7 +146,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
           borderRadius: BorderRadius.circular(50),
           child: CircleAvatar(
             radius: 28,
-            backgroundColor: AppColor.dartTealGreen,
+            backgroundColor: const Color(0xFF168A62),
             child: Icon(icon, color: Colors.white),
           ),
         ),
@@ -175,7 +174,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepOrange,
+                  color: Color(0xFF17251F),
                 ),
               ),
             ),
@@ -191,7 +190,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
 
   Widget _disappearOption(String value) {
     return ListTile(
-      title: Text(value, style: const TextStyle(color: Colors.deepPurple)),
+      title: Text(value, style: const TextStyle(color: Color(0xFF35433C))),
       trailing:
           disappearingMessage == value ? const Icon(Icons.check) : null,
       onTap: () {
@@ -220,23 +219,23 @@ class _AddNewGroupState extends State<AddNewGroup> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.pink,
+                  color: Color(0xFF17251F),
                 ),
               ),
               const SizedBox(height: 16),
 
               const Text("Edit group info",
-                  style: TextStyle(color: Colors.blue)),
+                  style: TextStyle(color: Color(0xFF17251F))),
               RadioListTile(
                 title: const Text("All participants",
-                    style: TextStyle(color: Colors.red)),
+                    style: TextStyle(color: Color(0xFF35433C))),
                 value: false,
                 groupValue: onlyAdminsEditInfo,
                 onChanged: (v) => setState(() => onlyAdminsEditInfo = v!),
               ),
               RadioListTile(
                 title: const Text("Admins only",
-                    style: TextStyle(color: Colors.deepOrange)),
+                    style: TextStyle(color: Color(0xFF35433C))),
                 value: true,
                 groupValue: onlyAdminsEditInfo,
                 onChanged: (v) => setState(() => onlyAdminsEditInfo = v!),
@@ -245,17 +244,17 @@ class _AddNewGroupState extends State<AddNewGroup> {
               const Divider(),
 
               const Text("Send messages",
-                  style: TextStyle(color: Colors.purple)),
+                  style: TextStyle(color: Color(0xFF17251F))),
               RadioListTile(
                 title: const Text("All participants",
-                    style: TextStyle(color: Colors.deepOrange)),
+                    style: TextStyle(color: Color(0xFF35433C))),
                 value: false,
                 groupValue: onlyAdminsSendMessage,
                 onChanged: (v) => setState(() => onlyAdminsSendMessage = v!),
               ),
               RadioListTile(
                 title: const Text("Admins only",
-                    style: TextStyle(color: Colors.red)),
+                    style: TextStyle(color: Color(0xFF35433C))),
                 value: true,
                 groupValue: onlyAdminsSendMessage,
                 onChanged: (v) => setState(() => onlyAdminsSendMessage = v!),
@@ -275,23 +274,23 @@ class _AddNewGroupState extends State<AddNewGroup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7F5),
 
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: const Color(0xFFF5F7F5),
+        foregroundColor: const Color(0xFF17251F),
         title: const Text(
           "New group",
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: Colors.purple,
+            color: Color(0xFF17251F),
           ),
         ),
       ),
 
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColor.dartTealGreen,
+        backgroundColor: const Color(0xFF168A62),
         onPressed: _isCreating ? null : _createGroup,
         child: _isCreating
             ? const CircularProgressIndicator(color: Colors.white)
@@ -309,7 +308,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
                   onTap: _showImageSourcePopup,
                   child: CircleAvatar(
                     radius: 28,
-                    backgroundColor: Colors.pink,
+                    backgroundColor: const Color(0xFFDCE9E1),
                     backgroundImage:
                         _groupImage != null ? FileImage(_groupImage!) : null,
                     child: _groupImage == null
@@ -325,12 +324,12 @@ class _AddNewGroupState extends State<AddNewGroup> {
                       hintText: "Group name",
                       enabledBorder: OutlineInputBorder(
                         borderSide:
-                            const BorderSide(color: Colors.green),
+                            const BorderSide(color: Color(0xFFDCE4DE)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderSide:
-                            const BorderSide(color: Colors.green, width: 2),
+                            const BorderSide(color: Color(0xFF168A62), width: 1.5),
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
@@ -345,7 +344,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
               contentPadding: EdgeInsets.zero,
               title: const Text(
                 "Disappearing messages",
-                style: TextStyle(color: Colors.pink),
+                style: TextStyle(color: Color(0xFF17251F)),
               ),
               subtitle: Text(disappearingMessage),
               trailing: const Icon(Icons.timer),
@@ -358,7 +357,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
               contentPadding: EdgeInsets.zero,
               title: const Text(
                 "Group permissions",
-                style: TextStyle(color: Colors.pink),
+                style: TextStyle(color: Color(0xFF17251F)),
               ),
               subtitle: Text(permissionSubtitle),
               trailing: const Icon(Icons.settings),
@@ -371,7 +370,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
             Text(
               "Members: ${widget.members.length}",
               style: const TextStyle(
-                color: Colors.blue,
+                color: Color(0xFF17251F),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -409,15 +408,15 @@ class _MemberAvatar extends StatelessWidget {
       children: [
         const CircleAvatar(
           radius: 26,
-          backgroundColor: Colors.purple,
-          child: Icon(Icons.person, color: Colors.white),
+          backgroundColor: Color(0xFFE8F3ED),
+          child: Icon(Icons.person, color: Color(0xFF168A62)),
         ),
         const SizedBox(height: 4),
         Text(
           name,
           style: const TextStyle(
             fontSize: 12,
-            color: Colors.deepOrange,
+            color: Color(0xFF68776F),
             fontWeight: FontWeight.bold,
           ),
           overflow: TextOverflow.ellipsis,

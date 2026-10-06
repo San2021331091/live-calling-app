@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -65,15 +64,11 @@ func main() {
 	}
 	app.configureOrigins(os.Getenv("CORS_ORIGINS"))
 
-	server := &http.Server{
-		Addr:              ":" + envOr("PORT", "8080"),
-		Handler:           app.routes(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	log.Printf("Voxa API listening on %s", server.Addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("run API server: %v", err)
+	server := app.routes()
+	address := ":" + envOr("PORT", "8080")
+	log.Printf("Voxa API listening on %s", address)
+	if err := server.Listen(address); err != nil {
+		log.Fatalf("run Fiber API server: %v", err)
 	}
 }
 

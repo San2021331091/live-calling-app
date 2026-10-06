@@ -131,7 +131,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffECE5DD),
+      backgroundColor: const Color(0xFFF4F7F5),
       appBar: _greenAppBar(),
       body: Column(
         children: [
@@ -144,15 +144,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   PreferredSizeWidget _greenAppBar() {
     return AppBar(
-      elevation: 1,
-      backgroundColor: const Color(0xff075E54),
-      iconTheme: const IconThemeData(color: Colors.white),
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF26362E),
+      bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1, color: Color(0xFFE8ECE9))),
       title: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=10"),
-          ),
+          const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE8F3ED), child: Icon(Icons.groups_2_rounded, color: Color(0xFF168A62))),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,12 +160,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: const Color(0xFF17251F),
                 ),
               ),
               const Text(
-                "Online",
-                style: TextStyle(fontSize: 12, color: Colors.white),
+                "Group conversation",
+                style: TextStyle(fontSize: 10, color: Color(0xFF75827B)),
               ),
             ],
           ),
@@ -176,11 +174,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
       actions: [
         IconButton(
           onPressed: _showGroupCallsUnavailable,
-          icon: const Icon(Icons.videocam, color: Colors.white),
+          icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
         ),
         IconButton(
           onPressed: _showGroupCallsUnavailable,
-          icon: const Icon(Icons.call, color: Colors.white),
+          icon: const Icon(Icons.call_outlined, color: Color(0xFF168A62)),
         ),
       ],
     );
@@ -231,16 +229,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
                         decoration: BoxDecoration(
-                          gradient: msg.isMe
-                              ? const LinearGradient(
-                                  colors: [
-                                    Color(0xff25D366),
-                                    Color(0xff128C7E),
-                                  ],
-                                )
-                              : null,
-                          color: msg.isMe ? null : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          color: msg.isMe ? const Color(0xFFDDF4E7) : Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(18),
+                            topRight: const Radius.circular(18),
+                            bottomLeft: Radius.circular(msg.isMe ? 18 : 5),
+                            bottomRight: Radius.circular(msg.isMe ? 5 : 18),
+                          ),
+                          boxShadow: const [BoxShadow(color: Color(0x0A17251F), blurRadius: 10, offset: Offset(0, 3))],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +247,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xff075E54),
+                                  color: Color(0xFF168A62),
                                 ),
                               ),
                             if (!msg.isMe) const SizedBox(height: 4),
@@ -264,8 +260,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: msg.isMe
-                                      ? Colors.white70
-                                      : Colors.grey,
+                                      ? const Color(0xFF849089)
+                                      : const Color(0xFF849089),
                                 ),
                               ),
                             ),
@@ -298,7 +294,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   IconButton(
                     icon: const Icon(
                       Icons.emoji_emotions_outlined,
-                      color: Colors.pink,
+                      color: const Color(0xFF79877F),
                     ),
                     onPressed: () {
                       FocusScope.of(context).unfocus();
@@ -331,7 +327,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                   // Attach Button
                   IconButton(
-                    icon: const Icon(Icons.attach_file, color: Colors.green),
+                    icon: const Icon(Icons.attach_file, color: Color(0xFF168A62)),
                     onPressed: () {
                       showModalBottomSheet(
                         context: context,
@@ -343,7 +339,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                   // Send Button
                   CircleAvatar(
-                    backgroundColor: const Color(0xff25D366),
+                    backgroundColor: const Color(0xFF168A62),
                     child: IconButton(
                       icon: const Icon(
                         Icons.send,
@@ -389,7 +385,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       height: 280,
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-        color: Color(0xff075E54),
+        color: Colors.white,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -594,18 +590,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
             child: Icon(icon, color: Colors.white, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Colors.white)),
+          Text(label, style: const TextStyle(color: Color(0xFF35433C), fontSize: 11)),
         ],
       ),
     );
   }
 
   Widget _messageContent(MessageModel message) {
-    if (message.mediaUrl == null) return Text(message.message, style: TextStyle(fontSize: 15, color: message.isMe ? Colors.white : Colors.black87));
+    if (message.mediaUrl == null) return Text(message.message, style: const TextStyle(fontSize: 14, color: Color(0xFF26362E)));
     if (message.mediaType == 'image') return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(message.mediaUrl!, width: 220, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image))),
-      if (message.message.isNotEmpty && message.message != 'Image') Text(message.message),
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Color(0xFF75827B)))),
+      if (message.message.isNotEmpty && message.message != 'Image') Text(message.message, style: const TextStyle(color: Color(0xFF26362E))),
     ]);
     return InkWell(onTap: () {
       if (message.mediaType == 'video') {
@@ -613,7 +609,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       } else {
         showDialog<void>(context: context, builder: (_) => AlertDialog(title: Text(message.mediaName ?? 'Attachment'), content: SelectableText(message.mediaUrl!)));
       }
-    }, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file), const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message))]));
+    }, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file, color: const Color(0xFF168A62)), const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message, style: const TextStyle(color: Color(0xFF26362E))))]));
   }
 
   Future<void> _uploadAndSend(File file, String type, String name) async {

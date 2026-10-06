@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:voxa/pages/camerapage.dart';
 import 'package:voxa/pages/chatpage.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/pages/communitypage.dart';
 import 'package:voxa/screens/calllistscreen.dart';
 import 'package:voxa/screens/createcommunity.dart';
@@ -130,135 +129,92 @@ class HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(110),
+        preferredSize: const Size.fromHeight(116),
         child: Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: Color(0xFFF9FBF9),
+            border: Border(bottom: BorderSide(color: Color(0xFFE8ECE9))),
           ),
           child: SafeArea(
             child: Column(
               children: [
-                // AppBar content
-                ListTile(
-                  title: const Text(
-                    "Voxa",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 2, 12, 0),
+                  child: Row(children: [
+                    Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(color: const Color(0xFFE6F3ED), borderRadius: BorderRadius.circular(12)),
+                      child: const Icon(Icons.forum_rounded, color: Color(0xFF168A62), size: 21),
                     ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.search, color: Colors.white),
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen()));
-                        },
-                      ),
-                      PopupMenuButton<String>(
-                        color: AppColor.dartTealGreen,
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
-                        itemBuilder: (BuildContext context) => [
+                    const SizedBox(width: 10),
+                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text('Voxa', style: TextStyle(color: Color(0xFF17251F), fontSize: 18, fontWeight: FontWeight.w800, height: 1.15)),
+                      SizedBox(height: 2),
+                      Text('Stay close to your people', style: TextStyle(color: Color(0xFF75827B), fontSize: 10.5)),
+                    ])),
+                    IconButton(
+                      tooltip: 'Search',
+                      icon: const Icon(Icons.search_rounded, color: Color(0xFF46554D)),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+                    ),
+                    PopupMenuButton<String>(
+                      color: Colors.white,
+                      icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF46554D)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      itemBuilder: (BuildContext context) => [
                           PopupMenuItem(
                             value: "New Group",
-                            child: const Text(
-                              "New Group",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text("New Group"),
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const CreateGroup(),
-                                ),
-                              );
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateGroup()));
                             },
                           ),
-
                           PopupMenuItem(
                             value: "New Community",
-                            child: const Text(
-                              "New Community",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text("New Community"),
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const CreateNewCommunity(),
-                                ),
-                              );
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateNewCommunity()));
                             },
                           ),
                           PopupMenuItem(
                             value: "My Profile",
-                            child: const Text(
-                              "My profile",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text("My profile"),
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MyProfileScreen()
-                                ),
-                              );
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
                             },
                           ),
-
                           PopupMenuItem(
                             value: "My communities",
-                            child: const Text(
-                              "My Communities",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text("My Communities"),
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const CommunityPage(),
-                                ),
-                              );
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityPage()));
                             },
                           ),
                           PopupMenuItem(
                             value: "Sign out",
-                            child: const Text(
-                              "Sign out",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text("Sign out"),
                             onTap: () async {
                               final navigator = Navigator.of(context);
                               await ApiClient.instance.signOut();
                               if (!mounted) return;
-                              navigator.pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) => const LoginScreen(),
-                                ),
-                                (_) => false,
-                              );
+                              navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
                             },
                           ),
                         ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ]),
                 ),
-
-                // TabBar
                 TabBar(
                   controller: tabController,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white70,
-                  indicatorColor: Colors.white,
+                  labelColor: const Color(0xFF168A62),
+                  unselectedLabelColor: const Color(0xFF87928C),
+                  indicatorColor: const Color(0xFF168A62),
+                  indicatorWeight: 3,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                   tabs: const [
-                    Tab(icon: Icon(Icons.camera_alt)),
+                    Tab(icon: Icon(Icons.camera_alt_outlined)),
                     Tab(text: "Chats"),
                     Tab(text: "Status"),
                     Tab(text: "Calls"),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/pages/createnewcommunity.dart';
 import 'package:voxa/model/chatmodel.dart';
 
@@ -15,22 +14,22 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
     {
       'name': 'For Friends',
       'icon': Icons.group,
-      'color': Colors.orangeAccent,
+      'color': const Color(0xFF168A62),
     },
     {
       'name': 'Work',
       'icon': Icons.work,
-      'color': Colors.blueAccent,
+      'color': const Color(0xFF168A62),
     },
     {
       'name': 'School',
       'icon': Icons.school,
-      'color': Colors.greenAccent,
+      'color': const Color(0xFF168A62),
     },
     {
       'name': 'Other',
       'icon': Icons.public,
-      'color': Colors.purpleAccent,
+      'color': const Color(0xFF168A62),
     },
   ];
 
@@ -48,21 +47,13 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(color: Colors.white),
+        leading: const BackButton(color: Color(0xFF35433C)),
         title: const Text(
           "New Community",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Color(0xFF17251F), fontWeight: FontWeight.w700),
         ),
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColor.dartTealGreen, AppColor.lightGreen],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
+        backgroundColor: const Color(0xFFF9FBF9),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -70,7 +61,7 @@ class _CreateNewCommunityState extends State<CreateNewCommunity> {
           children: [
             const Text(
               "Select Community Type",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,color: Colors.purple),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700,color: Color(0xFF17251F)),
             ),
             const SizedBox(height: 20),
             Expanded(
