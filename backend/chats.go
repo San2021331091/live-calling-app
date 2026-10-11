@@ -12,11 +12,14 @@ import (
 )
 
 type chat struct {
+	Muted          bool       `json:"muted"`
+	LastSenderID   string     `json:"last_sender_id"`
 	ID             string     `json:"id"`
 	Name           string     `json:"name"`
 	IsGroup        bool       `json:"is_group"`
 	IsCommunity    bool       `json:"is_community"`
 	CommunityType  string     `json:"community_type,omitempty"`
+	IsCreator      bool       `json:"is_creator"`
 	PeerID         string     `json:"peer_id,omitempty"`
 	PeerPhone      string     `json:"peer_phone,omitempty"`
 	CurrentMessage string     `json:"current_message"`
@@ -24,6 +27,7 @@ type chat struct {
 }
 
 type message struct {
+	ClientID  string    `json:"client_id,omitempty"`
 	ID        string    `json:"id"`
 	ChatID    string    `json:"chat_id"`
 	SenderID  string    `json:"sender_id"`
@@ -73,8 +77,8 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(),
 		`SELECT c.id::text, c.kind, c.community_type,
 		        CASE WHEN c.kind <> 'direct' THEN c.title ELSE peer.display_name END,
-		        peer.id::text, peer.phone, COALESCE(latest.content, ''),
-		        latest.created_at
+		        c.created_by = $1, peer.id::text, peer.phone, COALESCE(latest.content, ''),
+		        latest.created_at, mine.muted, COALESCE(latest.sender_id::text, '')
 		 FROM chats c
 		 JOIN chat_members mine ON mine.chat_id = c.id AND mine.user_id = $1
 		 LEFT JOIN LATERAL (
@@ -86,9 +90,9 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 		     LIMIT 1
 		 ) peer ON true
 		 LEFT JOIN LATERAL (
-		     SELECT content, created_at
+		     SELECT content, created_at, sender_id
 		     FROM messages
-		     WHERE chat_id = c.id
+		     WHERE chat_id = c.id AND (mine.cleared_before IS NULL OR created_at > mine.cleared_before)
 		     ORDER BY created_at DESC
 		     LIMIT 1
 		 ) latest ON true
@@ -109,8 +113,8 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 		var peerID, peerPhone sql.NullString
 		var lastMessageAt sql.NullTime
 		if err := rows.Scan(
-			&item.ID, &kind, &communityType, &item.Name, &peerID, &peerPhone,
-			&item.CurrentMessage, &lastMessageAt,
+			&item.ID, &kind, &communityType, &item.Name, &item.IsCreator, &peerID, &peerPhone,
+			&item.CurrentMessage, &lastMessageAt, &item.Muted, &item.LastSenderID,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not load chats")
 			return
@@ -259,6 +263,67 @@ func (a *application) handleCreateCommunity(w http.ResponseWriter, r *http.Reque
 	a.createMultiMemberChat(w, r, request.Name, request.Type, request.Members, "community")
 }
 
+func (a *application) handleUpdateGroupChat(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	var request struct {
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	name := strings.TrimSpace(request.Name)
+	if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 80 {
+		writeError(w, http.StatusBadRequest, "group name must contain 1 to 80 characters")
+		return
+	}
+	var updatedID string
+	err := a.db.QueryRowContext(r.Context(),
+		`UPDATE chats SET title = $3
+		 WHERE id = $1 AND created_by = $2 AND kind IN ('group', 'community')
+		 RETURNING id::text`,
+		chatID, authenticatedUserID(r), name,
+	).Scan(&updatedID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusForbidden, "only the group creator can edit this conversation")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update group")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"id": updatedID, "name": name})
+}
+
+func (a *application) handleDeleteGroupChat(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	var deletedID string
+	err := a.db.QueryRowContext(r.Context(),
+		`DELETE FROM chats
+		 WHERE id = $1 AND created_by = $2 AND kind IN ('group', 'community')
+		 RETURNING id::text`,
+		chatID, authenticatedUserID(r),
+	).Scan(&deletedID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusForbidden, "only the group creator can delete this conversation")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete group")
+		return
+	}
+	a.hub.closeChat(chatID)
+	writeJSON(w, http.StatusOK, map[string]string{"id": deletedID})
+}
+
 func (a *application) createMultiMemberChat(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -341,9 +406,54 @@ func (a *application) createMultiMemberChat(
 		return
 	}
 	writeJSON(w, http.StatusCreated, chat{
-		ID: chatID, Name: name, IsGroup: true,
+		ID: chatID, Name: name, IsCreator: true, IsGroup: true,
 		IsCommunity: kind == "community", CommunityType: communityType,
 	})
+}
+
+func (a *application) handleListChatMembers(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	if err := a.requireChatMember(r.Context(), chatID, authenticatedUserID(r)); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusForbidden, "you are not a member of this chat")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "could not check chat membership")
+		return
+	}
+
+	rows, err := a.db.QueryContext(r.Context(),
+		`SELECT u.id::text, u.display_name, u.phone
+		 FROM chat_members cm
+		 JOIN users u ON u.id = cm.user_id
+		 WHERE cm.chat_id = $1 AND cm.user_id <> $2
+		 ORDER BY u.display_name, u.id`,
+		chatID, authenticatedUserID(r),
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load chat members")
+		return
+	}
+	defer rows.Close()
+
+	members := make([]user, 0)
+	for rows.Next() {
+		var item user
+		if err := rows.Scan(&item.ID, &item.Name, &item.Phone); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read chat members")
+			return
+		}
+		members = append(members, item)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read chat members")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": members})
 }
 
 func (a *application) handleMessages(w http.ResponseWriter, r *http.Request) {
@@ -361,18 +471,30 @@ func (a *application) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var before any
+	if value := r.URL.Query().Get("before_id"); value != "" {
+		if !uuidPattern.MatchString(value) {
+			writeError(w, http.StatusBadRequest, "invalid history cursor")
+			return
+		}
+		before = value
+	}
 	rows, err := a.db.QueryContext(r.Context(),
 		`SELECT m.id::text, m.chat_id::text, m.sender_id::text,
 		        u.display_name, m.content, m.created_at
 		 FROM (
 		     SELECT id, chat_id, sender_id, content, created_at
 		     FROM messages WHERE chat_id = $1
+		       AND created_at > COALESCE((SELECT cleared_before FROM chat_members
+		         WHERE chat_id = $1 AND user_id = $2), '-infinity'::timestamptz)
+		       AND ($3::uuid IS NULL OR (created_at, id) <
+		         (SELECT created_at, id FROM messages WHERE id = $3 AND chat_id = $1))
 		     ORDER BY created_at DESC, id DESC
 		     LIMIT 100
 		 ) m
 		 JOIN users u ON u.id = m.sender_id
 		 ORDER BY m.created_at, m.id`,
-		chatID,
+		chatID, authenticatedUserID(r), before,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load messages")
@@ -399,6 +521,61 @@ func (a *application) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"messages": messages})
+}
+
+func (a *application) handleClearChatHistory(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	var cleared time.Time
+	err := a.db.QueryRowContext(r.Context(),
+		`UPDATE chat_members SET cleared_before = clock_timestamp()
+		 WHERE chat_id = $1 AND user_id = $2 RETURNING cleared_before`,
+		chatID, authenticatedUserID(r),
+	).Scan(&cleared)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusForbidden, "you are not a member of this chat")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not clear chat history")
+		return
+	}
+	if a.hub != nil {
+		a.hub.historyCleared(chatID, authenticatedUserID(r), cleared)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"cleared_before": cleared})
+}
+
+func (a *application) handleChatPreferences(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	var request struct {
+		Muted *bool `json:"muted"`
+	}
+	if decodeJSON(w, r, &request) != nil || request.Muted == nil {
+		writeError(w, http.StatusBadRequest, "muted must be true or false")
+		return
+	}
+	var muted bool
+	err := a.db.QueryRowContext(r.Context(),
+		`UPDATE chat_members SET muted = $3 WHERE chat_id = $1 AND user_id = $2 RETURNING muted`,
+		chatID, authenticatedUserID(r), *request.Muted,
+	).Scan(&muted)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusForbidden, "you are not a member of this chat")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save chat preferences")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
 }
 
 func (a *application) requireChatMember(ctx context.Context, chatID, userID string) error {

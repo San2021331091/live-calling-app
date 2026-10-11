@@ -149,7 +149,7 @@ class _CallListScreenState extends State<CallListScreen> {
                             _formatTime(call.time),
                             style: const TextStyle(
                               fontSize: 12,
-                              color: const Color(0xFF849089),
+                              color: Color(0xFF849089),
                             ),
                           ),
                         ],

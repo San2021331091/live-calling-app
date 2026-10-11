@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
@@ -176,6 +177,104 @@ func (a *application) handleCreateCall(w http.ResponseWriter, r *http.Request) {
 	}
 	call.PeerID = peerID
 	writeJSON(w, http.StatusCreated, call)
+}
+
+func (a *application) handleCreateGroupCall(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	if err := a.requireChatMember(r.Context(), chatID, authenticatedUserID(r)); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusForbidden, "you are not a member of this chat")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "could not validate chat membership")
+		return
+	}
+
+	var request struct {
+		Kind   string `json:"kind"`
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	callKind := strings.TrimSpace(request.Kind)
+	if callKind == "" {
+		callKind = "audio"
+	}
+	if callKind != "audio" && callKind != "video" {
+		writeError(w, http.StatusBadRequest, "call kind must be audio or video")
+		return
+	}
+	status := strings.TrimSpace(request.Status)
+	if status == "" {
+		status = "started"
+	}
+	if status != "started" && status != "missed" && status != "ended" {
+		writeError(w, http.StatusBadRequest, "call status is invalid")
+		return
+	}
+
+	rows, err := a.db.QueryContext(r.Context(),
+		`SELECT u.id::text
+		 FROM chat_members cm
+		 JOIN users u ON u.id = cm.user_id
+		 WHERE cm.chat_id = $1 AND cm.user_id <> $2
+		 ORDER BY u.display_name, u.id`,
+		chatID, authenticatedUserID(r),
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load group call members")
+		return
+	}
+	defer rows.Close()
+
+	memberIDs := make([]string, 0, 16)
+	for rows.Next() {
+		var memberID string
+		if err := rows.Scan(&memberID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not read group call members")
+			return
+		}
+		memberIDs = append(memberIDs, memberID)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read group call members")
+		return
+	}
+	if len(memberIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "this group does not have any members available to call")
+		return
+	}
+
+	calls := make([]callRecord, 0, len(memberIDs))
+	for _, memberID := range memberIDs {
+		var call callRecord
+		err = a.db.QueryRowContext(r.Context(),
+			`INSERT INTO calls (caller_id, callee_id, kind, status)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id::text, caller_id::text, callee_id::text, kind, status, started_at, ended_at`,
+			authenticatedUserID(r), memberID, callKind, status,
+		).Scan(&call.ID, &call.CallerID, &call.CalleeID, &call.Kind, &call.Status, &call.StartedAt, &call.EndedAt)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not create group call record")
+			return
+		}
+		call.PeerID = memberID
+		calls = append(calls, call)
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"chat_id":        chatID,
+		"kind":           callKind,
+		"status":         status,
+		"primary_peer_id": calls[0].PeerID,
+		"primary_call_id": calls[0].ID,
+		"calls":          calls,
+	})
 }
 
 func (a *application) handleCallSignal(w http.ResponseWriter, r *http.Request) {

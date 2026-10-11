@@ -36,6 +36,7 @@ class _ContactPageState extends State<ContactPage> {
       final allContacts = await FlutterContacts.getContacts(
         withProperties: true,
         withPhoto: true,
+        withAccounts: true,
       );
       contacts = allContacts;
       filteredContacts = allContacts;
@@ -83,7 +84,10 @@ class _ContactPageState extends State<ContactPage> {
         _showError('This contact is not a registered Voxa user.');
         return;
       }
-      final call = await ApiClient.instance.createCall(peerId: peerId, media: media);
+      final call = await ApiClient.instance.createCall(
+        peerId: peerId,
+        media: media,
+      );
       if (!mounted) return;
       await Navigator.push(
         context,
@@ -100,6 +104,50 @@ class _ContactPageState extends State<ContactPage> {
       );
     } on ApiException catch (error) {
       if (mounted) _showError(error.message);
+    }
+  }
+
+  Future<void> _editContact(Contact contact) async {
+    try {
+      await FlutterContacts.openExternalEdit(contact.id);
+      if (mounted) await _fetchContacts();
+    } catch (error) {
+      if (mounted) _showError('Could not edit contact: $error');
+    }
+  }
+
+  Future<void> _deleteContact(Contact contact) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete contact?'),
+        content: Text(
+          '“${contact.displayName}” will be deleted from your device contacts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await FlutterContacts.deleteContact(contact);
+      if (!mounted) return;
+      setState(() {
+        contacts.removeWhere((item) => item.id == contact.id);
+        filteredContacts.removeWhere((item) => item.id == contact.id);
+      });
+      _showError('Contact deleted from your device.');
+    } catch (error) {
+      if (mounted) _showError('Could not delete contact: $error');
     }
   }
 
@@ -128,8 +176,18 @@ class _ContactPageState extends State<ContactPage> {
     return ListTile(
       leading: (contact.photo != null && contact.photo!.isNotEmpty)
           ? CircleAvatar(backgroundImage: MemoryImage(contact.photo!))
-          : const CircleAvatar(backgroundColor: Color(0xFFE8F3ED), child: Icon(Icons.person, color: Color(0xFF168A62))),
-      title: Text(contact.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF17251F))),
+          : const CircleAvatar(
+              backgroundColor: Color(0xFFE8F3ED),
+              child: Icon(Icons.person, color: Color(0xFF168A62)),
+            ),
+      title: Text(
+        contact.displayName,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF17251F),
+        ),
+      ),
       subtitle: contact.phones.isNotEmpty
           ? Text(contact.phones.first.number)
           : null,
@@ -148,10 +206,35 @@ class _ContactPageState extends State<ContactPage> {
             icon: const Icon(Icons.videocam_outlined, color: Color(0xFF168A62)),
             onPressed: () => _startCall(contact, CallMedia.video),
           ),
+          PopupMenuButton<String>(
+            tooltip: 'Manage contact',
+            onSelected: (action) {
+              if (action == 'edit') _editContact(contact);
+              if (action == 'delete') _deleteContact(contact);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Edit contact'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline, color: Colors.red),
+                  title: Text('Delete contact'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       onTap: () {
-        print("Selected: ${contact.displayName}");
+        // Selection is handled by the action buttons above.
       },
     );
   }
@@ -177,7 +260,10 @@ class _ContactPageState extends State<ContactPage> {
                     decoration: InputDecoration(
                       hintText: "Search contacts",
                       prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
                       filled: true,
                       fillColor: const Color(0xFFF0F4F1),
                     ),

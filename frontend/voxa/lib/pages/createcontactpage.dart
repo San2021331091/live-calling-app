@@ -2,7 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:voxa/model/user_model.dart';
+import 'package:voxa/pages/individualpage.dart';
+import 'package:voxa/services/api_client.dart';
 
 class CreateContactPage extends StatefulWidget {
   const CreateContactPage({super.key});
@@ -18,11 +22,131 @@ class _CreateContactPageState extends State<CreateContactPage> {
 
   final ImagePicker _picker = ImagePicker();
   File? _profileImage;
+  bool _isSaving = false;
+  UserModel? _registeredUser;
+  String? _registrationMessage;
+
+  @override
+  void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
+    _phone.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveContact() async {
+    final firstName = _firstName.text.trim();
+    final lastName = _lastName.text.trim();
+    final phoneInput = _phone.text.trim();
+    final digits = phoneInput.replaceAll(RegExp(r'\D'), '');
+
+    if (firstName.isEmpty) {
+      _showMessage('Enter a first name.');
+      return;
+    }
+    if (!RegExp(r'^[+()\-\s.0-9]+$').hasMatch(phoneInput) ||
+        digits.length < 6 ||
+        digits.length > 15) {
+      _showMessage('Enter a valid phone number with country code.');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _registeredUser = null;
+      _registrationMessage = null;
+    });
+
+    try {
+      final registeredUser = await ApiClient.instance.findUserByPhone(
+        phoneInput,
+      );
+      if (!mounted) return;
+
+      final hasPermission = await FlutterContacts.requestPermission();
+      if (!hasPermission) {
+        throw const ApiException(
+          'Contacts permission is required to save this contact.',
+        );
+      }
+
+      final displayName = [
+        firstName,
+        lastName,
+      ].where((part) => part.isNotEmpty).join(' ');
+      final existingContacts = await FlutterContacts.getContacts(
+        withProperties: true,
+      );
+      final alreadySaved = existingContacts.any(
+        (contact) => contact.phones.any(
+          (phone) => phone.number.replaceAll(RegExp(r'\D'), '') == digits,
+        ),
+      );
+
+      if (!alreadySaved) {
+        await FlutterContacts.insertContact(
+          Contact(
+            displayName: displayName,
+            name: Name(first: firstName, last: lastName),
+            phones: [Phone(phoneInput)],
+            photo: _profileImage == null
+                ? null
+                : await _profileImage!.readAsBytes(),
+          ),
+        );
+      }
+      if (!mounted) return;
+
+      setState(() {
+        _registeredUser = registeredUser;
+        _registrationMessage = registeredUser?.id == ApiClient.instance.userId
+            ? 'This is your Voxa account number.'
+            : alreadySaved
+            ? 'This contact was already saved on your device.'
+            : 'Contact saved to your device.';
+      });
+      _showMessage(
+        registeredUser == null
+            ? '${_registrationMessage!} This number is not registered with Voxa yet.'
+            : registeredUser.id == ApiClient.instance.userId
+            ? _registrationMessage!
+            : '${_registrationMessage!} $displayName is already on Voxa.',
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (error) {
+      if (mounted) _showMessage('Could not save contact: $error');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _openChat() async {
+    final user = _registeredUser;
+    if (user == null) return;
+    try {
+      final chat = await ApiClient.instance.createDirectChat(userId: user.id);
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => IndividualPage(chatModel: chat)),
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (error) {
+      if (mounted) _showMessage('Could not open chat: $error');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   /// Open Camera
   Future<void> _openCamera() async {
-    final XFile? image =
-        await _picker.pickImage(source: ImageSource.camera);
+    final XFile? image = await _picker.pickImage(source: ImageSource.camera);
     if (image != null) {
       setState(() => _profileImage = File(image.path));
     }
@@ -30,8 +154,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
 
   /// Open Gallery
   Future<void> _openGallery() async {
-    final XFile? image =
-        await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
       setState(() => _profileImage = File(image.path));
     }
@@ -55,7 +178,7 @@ class _CreateContactPageState extends State<CreateContactPage> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF17251F),
+                  color: Color(0xFF17251F),
                 ),
               ),
               const SizedBox(height: 20),
@@ -119,23 +242,27 @@ class _CreateContactPageState extends State<CreateContactPage> {
         elevation: 0,
         title: const Text(
           "Create new contact",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              // SAVE CONTACT
-            },
-            child: const Text(
-              "SAVE",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            onPressed: _isSaving ? null : _saveContact,
+            child: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    "SAVE",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ],
       ),
@@ -144,7 +271,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            /// Avatar
             Center(
               child: Stack(
                 children: [
@@ -184,7 +310,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
 
             const SizedBox(height: 30),
 
-            /// First Name
             _inputField(
               controller: _firstName,
               label: "First name",
@@ -193,7 +318,6 @@ class _CreateContactPageState extends State<CreateContactPage> {
 
             const SizedBox(height: 20),
 
-            /// Last Name
             _inputField(
               controller: _lastName,
               label: "Last name",
@@ -202,21 +326,57 @@ class _CreateContactPageState extends State<CreateContactPage> {
 
             const SizedBox(height: 20),
 
-            /// Phone Number
             _inputField(
               controller: _phone,
-              label: "Phone number",
+              label: "Phone number (include country code)",
               icon: Icons.phone_android,
               keyboard: TextInputType.phone,
             ),
 
-            const SizedBox(height: 40),
+            if (_registrationMessage != null) ...[
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6F3ED),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _registrationMessage!,
+                      style: const TextStyle(
+                        color: Color(0xFF17251F),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (_registeredUser != null &&
+                        _registeredUser!.id != ApiClient.instance.userId) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _openChat,
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          label: const Text('Message on Voxa'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 28),
 
             const Text(
-              "This contact will be saved to your device",
+              "The number will be checked against Voxa accounts before this contact is saved to your device.",
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF68776F),
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

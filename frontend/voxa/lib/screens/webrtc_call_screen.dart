@@ -12,6 +12,7 @@ class WebRtcCallScreen extends StatefulWidget {
     required this.peerAvatar,
     required this.media,
     required this.isIncoming,
+    this.groupParticipants = const [],
   });
 
   final String callId;
@@ -20,6 +21,7 @@ class WebRtcCallScreen extends StatefulWidget {
   final String peerAvatar;
   final CallMedia media;
   final bool isIncoming;
+  final List<GroupCallParticipant> groupParticipants;
 
   @override
   State<WebRtcCallScreen> createState() => _WebRtcCallScreenState();
@@ -28,12 +30,17 @@ class WebRtcCallScreen extends StatefulWidget {
 class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  final Map<String, RTCVideoRenderer> _groupRemoteRenderers = {};
+  final Map<String, WebRtcCallSession> _groupSessions = {};
   WebRtcCallSession? _session;
+  MediaStream? _sharedLocalStream;
   String _status = 'Starting call...';
   String? _error;
   bool _microphoneEnabled = true;
   bool _cameraEnabled = true;
   bool _ending = false;
+
+  bool get _isGroupCall => widget.groupParticipants.isNotEmpty;
 
   @override
   void initState() {
@@ -43,6 +50,49 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
 
   Future<void> _initializeCall() async {
     try {
+      if (_isGroupCall) {
+        final stream = await navigator.mediaDevices.getUserMedia({
+          'audio': true,
+          'video': widget.media == CallMedia.video
+              ? {'facingMode': 'user'}
+              : false,
+        });
+        _sharedLocalStream = stream;
+        await _localRenderer.initialize();
+        _localRenderer.srcObject = stream;
+        for (final participant in widget.groupParticipants) {
+          final renderer = RTCVideoRenderer();
+          await renderer.initialize();
+          _groupRemoteRenderers[participant.peerId] = renderer;
+          final session = WebRtcCallSession(
+            callId: participant.callId,
+            peerId: participant.peerId,
+            media: widget.media,
+            isIncoming: false,
+            externalLocalStream: stream,
+            onStatusChanged: (status) {
+              if (mounted) {
+                setState(() => _status = 'Connected to ${_groupSessions.length} participants');
+              }
+            },
+            onRemoteStream: (remoteStream) {
+              if (!mounted) return;
+              final renderer = _groupRemoteRenderers[participant.peerId];
+              if (renderer == null) return;
+              renderer.srcObject = remoteStream;
+              setState(() {});
+            },
+            onError: (error) {
+              if (mounted) setState(() => _error = error);
+            },
+          );
+          _groupSessions[participant.peerId] = session;
+          await session.start();
+        }
+        if (mounted) setState(() {});
+        return;
+      }
+
       final session = WebRtcCallSession(
         callId: widget.callId,
         peerId: widget.peerId,
@@ -69,9 +119,15 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
       var statusError = '';
       try {
         await _session?.close(notifyPeer: true);
+        for (final session in _groupSessions.values) {
+          await session.close(notifyPeer: true);
+        }
       } catch (closeError) {
         statusError = ' The server could not be notified: $closeError';
         await _session?.close();
+        for (final session in _groupSessions.values) {
+          await session.close();
+        }
       }
       if (mounted) {
         setState(() {
@@ -85,8 +141,16 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
   @override
   void dispose() {
     _session?.close();
+    for (final session in _groupSessions.values) {
+      session.close();
+    }
+    _sharedLocalStream?.dispose();
     _localRenderer.srcObject = null;
     _remoteRenderer.srcObject = null;
+    for (final renderer in _groupRemoteRenderers.values) {
+      renderer.srcObject = null;
+      renderer.dispose();
+    }
     _localRenderer.dispose();
     _remoteRenderer.dispose();
     super.dispose();
@@ -99,9 +163,15 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await _session?.close(notifyPeer: true);
+      for (final session in _groupSessions.values) {
+        await session.close(notifyPeer: true);
+      }
       if (mounted) navigator.pop();
     } catch (error) {
       await _session?.close();
+      for (final session in _groupSessions.values) {
+        await session.close();
+      }
       if (mounted) {
         navigator.pop();
         messenger.showSnackBar(
@@ -117,33 +187,42 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
 
   Future<void> _toggleMicrophone() async {
     final enabled = !_microphoneEnabled;
-    _session?.setMicrophoneEnabled(enabled);
+    if (_isGroupCall) {
+      for (final session in _groupSessions.values) {
+        session.setMicrophoneEnabled(enabled);
+      }
+    } else {
+      _session?.setMicrophoneEnabled(enabled);
+    }
     setState(() => _microphoneEnabled = enabled);
   }
 
   Future<void> _toggleCamera() async {
     final enabled = !_cameraEnabled;
-    _session?.setCameraEnabled(enabled);
+    if (_isGroupCall) {
+      for (final session in _groupSessions.values) {
+        session.setCameraEnabled(enabled);
+      }
+    } else {
+      _session?.setCameraEnabled(enabled);
+    }
     setState(() => _cameraEnabled = enabled);
   }
 
   @override
   Widget build(BuildContext context) {
     final isVideo = widget.media == CallMedia.video;
-    final hasRemoteVideo = _remoteRenderer.srcObject != null && isVideo;
+    final remoteView = _buildRemoteView();
+    final label = _isGroupCall
+        ? '${widget.groupParticipants.length} participants'
+        : widget.peerName;
     return Scaffold(
       backgroundColor: const Color(0xff102c2b),
       body: SafeArea(
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (hasRemoteVideo)
-              RTCVideoView(
-                _remoteRenderer,
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-              )
-            else
-              _audioBackdrop(),
+            if (remoteView != null) remoteView else _audioBackdrop(),
             if (isVideo && _localRenderer.srcObject != null)
               Positioned(
                 right: 18,
@@ -166,7 +245,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
               child: Column(
                 children: [
                   Text(
-                    widget.peerName,
+                    label,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -199,7 +278,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
                       'Camera',
                       _toggleCamera,
                     ),
-                  if (isVideo)
+                  if (isVideo && !_isGroupCall)
                     _control(Icons.cameraswitch, 'Flip', () async {
                       try {
                         await _session?.switchCamera();
@@ -224,6 +303,54 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
         ),
       ),
     );
+  }
+
+  Widget? _buildRemoteView() {
+    if (_isGroupCall) {
+      final renderers = _groupRemoteRenderers.entries.toList();
+      if (renderers.isEmpty) return null;
+      return GridView.count(
+        crossAxisCount: renderers.length > 1 ? 2 : 1,
+        padding: const EdgeInsets.all(12),
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        children: renderers.map((entry) {
+          final renderer = entry.value;
+          final peer = widget.groupParticipants.firstWhere(
+            (participant) => participant.peerId == entry.key,
+            orElse: () => GroupCallParticipant(
+              callId: '',
+              peerId: entry.key,
+              peerName: 'Participant',
+            ),
+          );
+          return Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: Colors.black26,
+            ),
+            child: renderer.srcObject == null
+                ? Center(
+                    child: Text(
+                      peer.peerName,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  )
+                : RTCVideoView(
+                    renderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  ),
+          );
+        }).toList(),
+      );
+    }
+    if (_remoteRenderer.srcObject != null && widget.media == CallMedia.video) {
+      return RTCVideoView(
+        _remoteRenderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+      );
+    }
+    return null;
   }
 
   Widget _audioBackdrop() {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/groupchatpage.dart';
 import 'package:voxa/services/api_client.dart';
@@ -61,32 +60,55 @@ class _CommunityPageState extends State<CommunityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F8F6),
       appBar: AppBar(
-        flexibleSpace: const GradientAppBarBackground(),
+        backgroundColor: const Color(0xFF0E4D45),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0E4D45), Color(0xFF123E39)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         title: const Text(
-          "My Communities",
+          "Communities",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, color: Colors.white),
             onPressed: _createCommunity,
           ),
         ],
       ),
       body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         children: [
-          // Top card: Start a Community
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF15A26E), Color(0xFF0E4D45)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1D0F2B2A),
+                  blurRadius: 14,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
             child: Row(
               children: [
                 const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Color(0xFF168A62),
-                  child: Icon(Icons.add, color: Colors.white, size: 28),
+                  radius: 26,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.groups_2_rounded, color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -94,37 +116,40 @@ class _CommunityPageState extends State<CommunityPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
                       Text(
-                        "Start a Community",
+                        "Create a community",
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF17251F),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
                         ),
                       ),
                       SizedBox(height: 4),
                       Text(
-                        "Bring your groups together",
-                        style: TextStyle(fontSize: 11, color: Color(0xFF75827B)),
+                        "Bring members together in one space",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.chevron_right),
+                  icon: const Icon(Icons.chevron_right, color: Colors.white),
                   onPressed: _createCommunity,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              "Your Communities",
+              "Your communities",
               style: TextStyle(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 fontSize: 14,
-                color: Colors.grey,
+                color: Color(0xFF2D3D36),
               ),
             ),
           ),
@@ -134,39 +159,77 @@ class _CommunityPageState extends State<CommunityPage> {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_error != null)
-            ListTile(
-              title: Text(_error!),
-              trailing: IconButton(
-                onPressed: _loadCommunities,
-                icon: const Icon(Icons.refresh),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: Text(_error!)),
+                  IconButton(
+                    onPressed: _loadCommunities,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
               ),
             )
           else if (communities.isEmpty)
-            const ListTile(
-              title: Text('No communities yet'),
-              subtitle: Text('Create one and invite other Voxa users.'),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Text(
+                'No communities yet. Create your first space to get started.',
+                style: TextStyle(color: Color(0xFF596A62)),
+              ),
             )
           else
             ...communities.map(
-              (community) => Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              (community) => Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0D17251F),
+                      blurRadius: 12,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFF168A62),
-                    radius: 24,
-                    child: Icon(Icons.groups, color: Colors.white),
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF16A26E), Color(0xFF0E4D45)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(14)),
+                    ),
+                    child: const Icon(Icons.groups, color: Colors.white),
                   ),
                   title: Text(
-                    community.name,
+                    community.name.isEmpty ? 'Community' : community.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, color: Color(0xFF26362E)),
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF26362E),
+                    ),
                   ),
                   subtitle: Text(
                     community.about ?? 'Community chat',
-                    style: const TextStyle(color: Color(0xFF75827B),fontSize: 11),
+                    style: const TextStyle(color: Color(0xFF75827B), fontSize: 11),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(Icons.chevron_right, color: Color(0xFF168A62)),
                   onTap: () => _openCommunity(community),
                 ),
               ),

@@ -46,3 +46,9 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Match the Media3 version used by video_player_android.
+    implementation("androidx.media3:media3-transformer:1.9.2")
+    implementation("androidx.media3:media3-effect:1.9.2")
+}

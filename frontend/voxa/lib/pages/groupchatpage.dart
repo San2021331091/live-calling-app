@@ -6,20 +6,27 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:voxa/model/call_model.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/message_model.dart';
+import 'package:voxa/screens/webrtc_call_screen.dart';
 import 'package:voxa/services/api_client.dart';
+import 'package:voxa/pages/chat_tools_page.dart';
+import 'package:voxa/customui/text_entry_dialog.dart';
+import 'package:voxa/services/chat_summary_service.dart';
 import 'package:voxa/services/media_upload_service.dart';
 import 'package:voxa/pages/media_preview.dart';
+import 'package:voxa/screens/editimage.dart';
+import 'package:voxa/media/media_result.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class GroupChatPage extends StatefulWidget {
   final ChatModel group;
-  const GroupChatPage({super.key, required this.group});
+  final VoidCallback? onChanged;
+  const GroupChatPage({super.key, required this.group, this.onChanged});
 
   @override
   State<GroupChatPage> createState() => _GroupChatPageState();
@@ -31,16 +38,25 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool showEmojiPicker = false;
 
   final List<MessageModel> messages = [];
+  final ScrollController _messageScroll = ScrollController();
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   bool _isLoading = true;
+  bool _sendingText = false;
+  late bool _muted;
+  DateTime? _clearedBefore;
+  bool _clearing = false;
   String? _chatError;
+  late String _groupName;
+  bool _isManagingGroup = false;
 
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+    _muted = widget.group.muted;
+    _groupName = widget.group.name;
     _initializeChat();
   }
 
@@ -48,6 +64,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void dispose() {
     _messageController.dispose();
     _focusNode.dispose();
+    _messageScroll.dispose();
+    ApiClient.instance.chatDisconnected(_channel);
     _subscription?.cancel();
     _channel?.sink.close();
     super.dispose();
@@ -67,16 +85,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
       _chatError = null;
     });
     try {
-      _subscription?.cancel();
+      ApiClient.instance.chatDisconnected(_channel);
+      await _subscription?.cancel();
       await _channel?.sink.close();
       final channel = await ApiClient.instance.connectToChat(chatId);
+      if (!mounted) {
+        await channel.sink.close();
+        return;
+      }
       _channel = channel;
       _subscription = channel.stream.listen(
         _handleSocketEvent,
         onError: (Object _) {
+          ApiClient.instance.chatDisconnected(channel);
           if (mounted) setState(() => _chatError = 'Live connection lost.');
         },
         onDone: () {
+          ApiClient.instance.chatDisconnected(channel);
           if (mounted) setState(() => _chatError = 'Live connection closed.');
         },
       );
@@ -88,8 +113,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
             messages.add(message);
           }
         }
+        messages.sort(_compareMessages);
         _isLoading = false;
       });
+      _scrollToLatest();
     } on ApiException catch (error) {
       if (mounted) {
         setState(() {
@@ -108,16 +135,59 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
+  static int _compareMessages(MessageModel a, MessageModel b) {
+    final order = (a.createdAt ?? DateTime(1970)).compareTo(
+      b.createdAt ?? DateTime(1970),
+    );
+    return order != 0 ? order : (a.id ?? '').compareTo(b.id ?? '');
+  }
+
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _messageScroll.hasClients) {
+        _messageScroll.jumpTo(_messageScroll.position.maxScrollExtent);
+      }
+    });
+  }
+
   void _handleSocketEvent(dynamic event) {
     try {
       final decoded = jsonDecode(event as String) as Map<String, dynamic>;
+      ApiClient.instance.handleChatEvent(_channel, decoded);
+      if (decoded['type'] == 'history_cleared') {
+        final cutoff = DateTime.parse(decoded['cleared_before'] as String);
+        if (mounted) {
+          setState(() {
+            _clearedBefore = cutoff;
+            messages.removeWhere(
+              (message) =>
+                  message.createdAt == null ||
+                  !message.createdAt!.isAfter(cutoff),
+            );
+          });
+        }
+        return;
+      }
       if (decoded['type'] == 'message' &&
           decoded['message'] is Map<String, dynamic>) {
         final message = MessageModel.fromJson(
           decoded['message'] as Map<String, dynamic>,
         );
+        if (_clearedBefore != null &&
+            message.createdAt != null &&
+            !message.createdAt!.isAfter(_clearedBefore!)) {
+          return;
+        }
         if (mounted && !messages.any((item) => item.id == message.id)) {
-          setState(() => messages.add(message));
+          final followLatest =
+              message.isMe ||
+              !_messageScroll.hasClients ||
+              _messageScroll.position.extentAfter < 120;
+          setState(() {
+            messages.add(message);
+            messages.sort(_compareMessages);
+          });
+          if (followLatest) _scrollToLatest();
         }
       } else if (decoded['type'] == 'error' && mounted) {
         setState(() => _chatError = decoded['error'] as String?);
@@ -145,51 +215,441 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   PreferredSizeWidget _greenAppBar() {
     return AppBar(
-      flexibleSpace: const GradientAppBarBackground(),
+      backgroundColor: const Color(0xFF0E4D45),
       elevation: 0,
-      bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1, color: Color(0xFFE8ECE9))),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF0C544B), Color(0xFF123E39)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
       title: Row(
         children: [
-          const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE8F3ED), child: Icon(Icons.groups_2_rounded, color: Color(0xFF168A62))),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.groups_2_rounded, color: Colors.white),
+          ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.group.name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _groupName.isEmpty ? 'Group' : _groupName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const Text(
-                "Group conversation",
-                style: TextStyle(fontSize: 10, color: Colors.white70),
-              ),
-            ],
+                const Text(
+                  "Group conversation",
+                  style: TextStyle(fontSize: 10, color: Colors.white70),
+                ),
+              ],
+            ),
           ),
         ],
       ),
       actions: [
         IconButton(
-          onPressed: _showGroupCallsUnavailable,
+          onPressed: _showSmartRecap,
+          icon: const Icon(Icons.auto_awesome_outlined, color: Colors.white),
+        ),
+        IconButton(
+          onPressed: () => _startGroupCall(CallMedia.video),
           icon: const Icon(Icons.videocam_outlined, color: Colors.white),
         ),
         IconButton(
-          onPressed: _showGroupCallsUnavailable,
+          onPressed: () => _startGroupCall(CallMedia.audio),
           icon: const Icon(Icons.call_outlined, color: Colors.white),
+        ),
+        PopupMenuButton<String>(
+          enabled: !_isManagingGroup,
+          onSelected: (action) {
+            if (action == 'edit') _editGroupName();
+            if (action == 'delete') _deleteGroup();
+            if (action == 'search') _openChatTools(search: true);
+            if (action == 'media') _openChatTools();
+            if (action == 'mute') _toggleMute();
+            if (action == 'clear') _clearHistory();
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'search', child: Text('Search')),
+            const PopupMenuItem(
+              value: 'media',
+              child: Text('Media, links and docs'),
+            ),
+            PopupMenuItem(
+              value: 'mute',
+              child: Text(
+                _muted ? 'Unmute in-app alerts' : 'Mute in-app alerts',
+              ),
+            ),
+            const PopupMenuItem(value: 'clear', child: Text('Clear history')),
+            if (widget.group.isCreator)
+              PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text(
+                    widget.group.isCommunity == true
+                        ? 'Edit community'
+                        : 'Edit group',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            if (widget.group.isCreator)
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline, color: Colors.red),
+                  title: Text(
+                    widget.group.isCommunity == true
+                        ? 'Delete community'
+                        : 'Delete group',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+          ],
         ),
       ],
     );
   }
 
-  void _showGroupCallsUnavailable() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Group calling is not supported yet; calls currently use peer-to-peer WebRTC.',
+  Future<void> _editGroupName() async {
+    if (_isManagingGroup) return;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => TextEntryDialog(
+        title: widget.group.isCommunity == true
+            ? 'Edit community name'
+            : 'Edit group name',
+        label: 'Name',
+        initial: _groupName,
+      ),
+    );
+    if (!mounted) return;
+    if (name == null || name.trim().isEmpty || name.trim() == _groupName) {
+      return;
+    }
+    final chatId = widget.group.id;
+    if (chatId == null) {
+      _showGroupMessage('This group is not available.');
+      return;
+    }
+    setState(() => _isManagingGroup = true);
+    try {
+      await ApiClient.instance.updateGroupName(chatId, name.trim());
+      if (!mounted) return;
+      setState(() => _groupName = name.trim());
+      widget.onChanged?.call();
+      _showGroupMessage('Group name updated.');
+    } on ApiException catch (error) {
+      if (mounted) _showGroupMessage(error.message);
+    } catch (_) {
+      if (mounted) _showGroupMessage('Could not update the group name.');
+    } finally {
+      if (mounted) setState(() => _isManagingGroup = false);
+    }
+  }
+
+  Future<void> _deleteGroup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          widget.group.isCommunity == true
+              ? 'Delete this community?'
+              : 'Delete this group?',
         ),
+        content: const Text(
+          'This removes the group and its message history for all members.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              widget.group.isCommunity == true
+                  ? 'Delete community'
+                  : 'Delete group',
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final chatId = widget.group.id;
+    if (chatId == null) {
+      _showGroupMessage('This group is not available.');
+      return;
+    }
+    setState(() => _isManagingGroup = true);
+    try {
+      await ApiClient.instance.deleteGroup(chatId);
+      if (!mounted) return;
+      widget.onChanged?.call();
+      Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (mounted) _showGroupMessage(error.message);
+    } catch (_) {
+      if (mounted) _showGroupMessage('Could not delete the group.');
+    } finally {
+      if (mounted) setState(() => _isManagingGroup = false);
+    }
+  }
+
+  void _showGroupMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _shareLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _showGroupMessage(
+          'Turn on Location in the emulator settings, then try again.',
+        );
+        await Geolocator.openLocationSettings();
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        _showGroupMessage('Allow Voxa to access location in app settings.');
+        await Geolocator.openAppSettings();
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _showGroupMessage('Location permission was denied.');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 20),
+      );
+      final channel = _channel;
+      if (channel == null) {
+        _showGroupMessage('Connect to the chat before sharing your location.');
+        return;
+      }
+      final mapsUrl = Uri.https('maps.google.com', '/', {
+        'q': '${position.latitude},${position.longitude}',
+      });
+      await ApiClient.instance.sendMessage(channel, 'My location: $mapsUrl');
+    } on TimeoutException {
+      if (mounted) {
+        _showGroupMessage(
+          'Could not get a location fix. Set a location in emulator controls and retry.',
+        );
+      }
+    } catch (error) {
+      if (mounted) _showGroupMessage('Could not share location: $error');
+    }
+  }
+
+  Future<void> _startGroupCall(CallMedia media) async {
+    final chatId = widget.group.id;
+    if (chatId == null || chatId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This group is not available for calls.')),
+      );
+      return;
+    }
+
+    try {
+      final payload = await ApiClient.instance.startGroupCall(
+        chatId: chatId,
+        media: media,
+      );
+      final calls = payload['calls'];
+      if (calls is! List || calls.isEmpty) {
+        throw const ApiException('The group call could not be started.');
+      }
+
+      final participants = calls.map<GroupCallParticipant>((entry) {
+        final call = entry as Map<String, dynamic>;
+        final callId = call['id'] as String? ?? '';
+        final peerId = call['peer_id'] as String? ?? '';
+        final peerName = call['peer_name'] as String? ?? 'Participant';
+        return GroupCallParticipant(
+          callId: callId,
+          peerId: peerId,
+          peerName: peerName,
+        );
+      }).toList();
+
+      final primaryParticipant = participants.firstWhere(
+        (participant) =>
+            participant.callId.isNotEmpty && participant.peerId.isNotEmpty,
+        orElse: () => participants.first,
+      );
+
+      if (primaryParticipant.callId.isEmpty ||
+          primaryParticipant.peerId.isEmpty) {
+        throw const ApiException('The group call could not be started.');
+      }
+
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WebRtcCallScreen(
+            callId: primaryParticipant.callId,
+            peerId: primaryParticipant.peerId,
+            peerName: _groupName,
+            peerAvatar: '',
+            media: media,
+            isIncoming: false,
+            groupParticipants: participants,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not start the group call. Check your connection.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _openChatTools({bool search = false}) {
+    final id = widget.group.id;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatToolsPage(
+          chatId: id,
+          chatName: widget.group.name,
+          search: search,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleMute() async {
+    final id = widget.group.id;
+    if (id == null) return;
+    try {
+      await ApiClient.instance.setChatMuted(id, !_muted);
+      if (!mounted) return;
+      setState(() => _muted = !_muted);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _muted ? 'In-app chat alerts muted' : 'In-app chat alerts enabled',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save mute setting: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    if (_clearing) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear chat history for you?'),
+        content: const Text(
+          'Previous messages will be removed from your history. Other participants keep their copies. New messages will still appear.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear history'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final id = widget.group.id;
+    if (id == null) return;
+    _clearing = true;
+    try {
+      final cutoff = await ApiClient.instance.clearChatHistory(id);
+      if (!mounted) return;
+      setState(() {
+        _clearedBefore = cutoff;
+        messages.removeWhere(
+          (message) =>
+              message.createdAt == null || !message.createdAt!.isAfter(cutoff),
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat history cleared for you')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not clear history: $error')),
+        );
+      }
+    } finally {
+      _clearing = false;
+    }
+  }
+
+  void _showSmartRecap() {
+    final summary = ChatSummaryService.summarize(
+      messages,
+      chatName: _groupName.isEmpty ? 'This group' : _groupName,
+    );
+
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Conversation overview'),
+        content: Text(summary),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -211,9 +671,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
           child: _isLoading && messages.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : ListView.builder(
+                  controller: _messageScroll,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+                    horizontal: 12,
+                    vertical: 12,
                   ),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -224,26 +685,34 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(12),
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          maxWidth: MediaQuery.of(context).size.width * 0.76,
                         ),
                         decoration: BoxDecoration(
-                          color: msg.isMe ? const Color(0xFFDDF4E7) : Colors.white,
+                          color: msg.isMe
+                              ? const Color(0xFFDDF4E7)
+                              : Colors.white,
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(18),
                             topRight: const Radius.circular(18),
-                            bottomLeft: Radius.circular(msg.isMe ? 18 : 5),
-                            bottomRight: Radius.circular(msg.isMe ? 5 : 18),
+                            bottomLeft: Radius.circular(msg.isMe ? 18 : 6),
+                            bottomRight: Radius.circular(msg.isMe ? 6 : 18),
                           ),
-                          boxShadow: const [BoxShadow(color: Color(0x0A17251F), blurRadius: 10, offset: Offset(0, 3))],
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x0A17251F),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (!msg.isMe)
                               Text(
-                                msg.sender,
+                                msg.sender.isEmpty ? 'Member' : msg.sender,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -257,11 +726,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               alignment: Alignment.bottomRight,
                               child: Text(
                                 msg.time,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 10,
-                                  color: msg.isMe
-                                      ? const Color(0xFF849089)
-                                      : const Color(0xFF849089),
+                                  color: Color(0xFF849089),
                                 ),
                               ),
                             ),
@@ -283,18 +750,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
           Padding(
             padding: const EdgeInsets.all(8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
-                  // Emoji Button
                   IconButton(
                     icon: const Icon(
                       Icons.emoji_emotions_outlined,
-                      color: const Color(0xFF79877F),
+                      color: Color(0xFF79877F),
                     ),
                     onPressed: () {
                       FocusScope.of(context).unfocus();
@@ -303,8 +776,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       });
                     },
                   ),
-
-                  // TextField
                   Expanded(
                     child: TextField(
                       controller: _messageController,
@@ -322,12 +793,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       },
                     ),
                   ),
-
-                  const SizedBox(width: 10),
-
-                  // Attach Button
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.attach_file, color: Color(0xFF168A62)),
+                    icon: const Icon(
+                      Icons.attach_file,
+                      color: Color(0xFF168A62),
+                    ),
                     onPressed: () {
                       showModalBottomSheet(
                         context: context,
@@ -336,8 +807,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       );
                     },
                   ),
-
-                  // Send Button
                   CircleAvatar(
                     backgroundColor: const Color(0xFF168A62),
                     child: IconButton(
@@ -405,7 +874,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     type: FileType.custom,
                     allowedExtensions: ['pdf', 'doc', 'docx', 'zip'],
                   );
-                  if (result != null && result.files.single.path != null) await _uploadAndSend(File(result.files.single.path!), 'document', result.files.single.name);
+                  if (result != null && result.files.single.path != null) {
+                    await _uploadAndSend(
+                      File(result.files.single.path!),
+                      'document',
+                      result.files.single.name,
+                    );
+                  }
                 },
               ),
               _attachmentItem(
@@ -427,7 +902,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final image = await _imagePicker.pickImage(
                                 source: ImageSource.camera,
                               );
-                              if (image != null) await _uploadAndSend(File(image.path), 'image', image.name);
+                              if (image != null) {
+                                await _uploadAndSend(
+                                  File(image.path),
+                                  'image',
+                                  image.name,
+                                );
+                              }
                             },
                           ),
                           ListTile(
@@ -438,7 +919,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final video = await _imagePicker.pickVideo(
                                 source: ImageSource.camera,
                               );
-                              if (video != null) await _uploadAndSend(File(video.path), 'video', video.name);
+                              if (video != null) {
+                                await _uploadAndSend(
+                                  File(video.path),
+                                  'video',
+                                  video.name,
+                                );
+                              }
                             },
                           ),
                         ],
@@ -466,7 +953,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             final image = await _imagePicker.pickImage(
                               source: ImageSource.gallery,
                             );
-                            if (image != null) await _uploadAndSend(File(image.path), 'image', image.name);
+                            if (image != null) {
+                              await _uploadAndSend(
+                                File(image.path),
+                                'image',
+                                image.name,
+                              );
+                            }
                           },
                         ),
                         ListTile(
@@ -480,7 +973,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             final video = await _imagePicker.pickVideo(
                               source: ImageSource.gallery,
                             );
-                            if (video != null) await _uploadAndSend(File(video.path), 'video', video.name);
+                            if (video != null) {
+                              await _uploadAndSend(
+                                File(video.path),
+                                'video',
+                                video.name,
+                              );
+                            }
                           },
                         ),
                       ],
@@ -503,36 +1002,28 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     type: FileType.audio,
                   );
                   final file = result?.files.single;
-                  if (file != null && file.path != null) await _uploadAndSend(File(file.path!), 'audio', file.name);
+                  if (file != null && file.path != null) {
+                    await _uploadAndSend(File(file.path!), 'audio', file.name);
+                  }
                 },
               ),
               _attachmentItem(
                 Icons.location_on,
                 "Location",
                 Colors.green,
-                () async {
-                  bool serviceEnabled =
-                      await Geolocator.isLocationServiceEnabled();
-                  if (!serviceEnabled) return;
-                  LocationPermission permission =
-                      await Geolocator.checkPermission();
-                  if (permission == LocationPermission.denied) {
-                    permission = await Geolocator.requestPermission();
-                  }
-                  if (permission == LocationPermission.deniedForever) return;
-                  final pos = await Geolocator.getCurrentPosition();
-                  print("Location: ${pos.latitude}, ${pos.longitude}");
-                },
+                _shareLocation,
               ),
               _attachmentItem(Icons.person, "Contact", Colors.blue, () async {
                 if (!await FlutterContacts.requestPermission()) return;
+                final currentContext = context;
                 final contacts = await FlutterContacts.getContacts(
                   withProperties: true,
                 );
+                if (!mounted || !currentContext.mounted) return;
 
                 // Show popup to pick contact
                 showDialog(
-                  context: context,
+                  context: currentContext,
                   builder: (_) => AlertDialog(
                     title: const Text("Select Contact"),
                     content: SizedBox(
@@ -555,7 +1046,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             title: Text(contact.displayName),
                             onTap: () {
                               Navigator.pop(context);
-                              print("Selected contact: ${contact.displayName}");
+                              debugPrint(
+                                'Selected contact: ${contact.displayName}',
+                              );
                             },
                           );
                         },
@@ -590,44 +1083,143 @@ class _GroupChatPageState extends State<GroupChatPage> {
             child: Icon(icon, color: Colors.white, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Color(0xFF35433C), fontSize: 11)),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF35433C), fontSize: 11),
+          ),
         ],
       ),
     );
   }
 
   Widget _messageContent(MessageModel message) {
-    if (message.mediaUrl == null) return Text(message.message, style: const TextStyle(fontSize: 14, color: Color(0xFF26362E)));
-    if (message.mediaType == 'image') return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(message.mediaUrl!, width: 220, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Color(0xFF75827B)))),
-      if (message.message.isNotEmpty && message.message != 'Image') Text(message.message, style: const TextStyle(color: Color(0xFF26362E))),
-    ]);
-    return InkWell(onTap: () {
-      if (message.mediaType == 'video') {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => MediaPreview(url: message.mediaUrl!)));
-      } else {
-        showDialog<void>(context: context, builder: (_) => AlertDialog(title: Text(message.mediaName ?? 'Attachment'), content: SelectableText(message.mediaUrl!)));
-      }
-    }, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(message.mediaType == 'video' ? Icons.play_circle : Icons.insert_drive_file, color: const Color(0xFF168A62)), const SizedBox(width: 8), Flexible(child: Text(message.mediaName ?? message.message, style: const TextStyle(color: Color(0xFF26362E))))]));
+    if (message.mediaUrl == null) {
+      return Text(
+        message.message,
+        style: const TextStyle(fontSize: 14, color: Color(0xFF26362E)),
+      );
+    }
+    if (message.mediaType == 'image') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              message.mediaUrl!,
+              width: 220,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.broken_image, color: Color(0xFF75827B)),
+            ),
+          ),
+          if (message.message.isNotEmpty && message.message != 'Image')
+            Text(
+              message.message,
+              style: const TextStyle(color: Color(0xFF26362E)),
+            ),
+        ],
+      );
+    }
+    return InkWell(
+      onTap: () {
+        if (message.mediaType == 'video') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MediaPreview(url: message.mediaUrl!),
+            ),
+          );
+        } else {
+          showDialog<void>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text(message.mediaName ?? 'Attachment'),
+              content: SelectableText(message.mediaUrl!),
+            ),
+          );
+        }
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            message.mediaType == 'video'
+                ? Icons.play_circle
+                : Icons.insert_drive_file,
+            color: const Color(0xFF168A62),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message.message.isNotEmpty
+                  ? message.message
+                  : (message.mediaName ?? 'Attachment'),
+              style: const TextStyle(color: Color(0xFF26362E)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _uploadAndSend(File file, String type, String name) async {
+    var caption = '';
+    if (type == 'image' || type == 'video') {
+      if (!mounted) return;
+      final edited = await Navigator.of(context).push<MediaResult>(
+        MaterialPageRoute(
+          builder: (_) => EditImage(file: file, isVideo: type == 'video'),
+        ),
+      );
+      if (edited == null || !mounted) return;
+      file = edited.file;
+      caption = edited.caption;
+      name = file.path.split(Platform.pathSeparator).last;
+    }
+
     final channel = _channel;
-    if (channel == null) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chat is not connected.'))); return; }
+    if (channel == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Chat is not connected.')));
+      }
+      return;
+    }
     try {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uploading attachment…')));
-      final url = await MediaUploadService.upload(file, isVideo: type != 'image');
-      await ApiClient.instance.sendMessage(channel, jsonEncode({'_voxa_media': true, 'url': url, 'type': type, 'name': name, 'caption': ''}));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Uploading attachment…')));
+      }
+      final url = await MediaUploadService.upload(
+        file,
+        isVideo: type != 'image',
+      );
+      await ApiClient.instance.sendMessage(
+        channel,
+        jsonEncode({
+          '_voxa_media': true,
+          'url': url,
+          'type': type,
+          'name': name,
+          'caption': caption,
+        }),
+      );
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Attachment failed: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Attachment failed: $error')));
+      }
     }
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final content = _messageController.text.trim();
     final channel = _channel;
-    if (content.isEmpty) return;
+    if (content.isEmpty || _sendingText) return;
     if (channel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -636,7 +1228,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
       );
       return;
     }
-    ApiClient.instance.sendMessage(channel, content);
-    _messageController.clear();
+    _sendingText = true;
+    try {
+      await ApiClient.instance.sendMessage(channel, content);
+      if (mounted && _messageController.text.trim() == content) {
+        _messageController.clear();
+      }
+    } catch (error) {
+      if (mounted) _showGroupMessage('Could not send message: $error');
+    } finally {
+      _sendingText = false;
+    }
   }
 }

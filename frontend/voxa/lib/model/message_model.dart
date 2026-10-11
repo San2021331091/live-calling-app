@@ -2,6 +2,7 @@ import 'dart:convert';
 
 class MessageModel {
   final String? id;
+  final DateTime? createdAt;
   final String? chatId;
   final String? senderId;
   final String sender;
@@ -14,6 +15,7 @@ class MessageModel {
 
   MessageModel({
     this.id,
+    this.createdAt,
     this.chatId,
     this.senderId,
     required this.sender,
@@ -43,6 +45,7 @@ class MessageModel {
     } catch (_) {}
     return MessageModel(
       id: json['id'] as String?,
+      createdAt: createdAt,
       chatId: json['chat_id'] as String?,
       senderId: json['sender_id'] as String?,
       sender: json['sender'] as String? ?? '',

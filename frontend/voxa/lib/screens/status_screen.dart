@@ -114,6 +114,102 @@ class StatusScreenState extends State<StatusScreen> {
     await _loadStatuses();
   }
 
+  Future<void> _editStatusCaption(StatusModel status) async {
+    final statusId = status.id;
+    if (statusId == null) {
+      _showMessage('This update cannot be edited.');
+      return;
+    }
+    final controller = TextEditingController(text: status.caption ?? '');
+    final caption = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit update caption'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 500,
+          maxLines: 3,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Add a caption'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (caption == null || caption == status.caption) return;
+    try {
+      await ApiClient.instance.updateStatusCaption(statusId, caption);
+      if (!mounted) return;
+      setState(() {
+        final index = statuses.indexWhere((item) => item.id == statusId);
+        if (index >= 0) {
+          statuses[index] = StatusModel(
+            id: status.id,
+            name: status.name,
+            image: status.image,
+            time: status.time,
+            seen: status.seen,
+            isVideo: status.isVideo,
+            caption: caption,
+            isMine: status.isMine,
+          );
+        }
+      });
+      _showMessage('Update caption saved.');
+    } on ApiException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (_) {
+      if (mounted) _showMessage('Could not update this status.');
+    }
+  }
+
+  Future<void> _deleteStatus(StatusModel status) async {
+    final statusId = status.id;
+    if (statusId == null) {
+      _showMessage('This update cannot be deleted.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this update?'),
+        content: const Text('Your update will no longer be visible to contacts.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ApiClient.instance.deleteStatus(statusId);
+      if (!mounted) return;
+      setState(() => statuses.removeWhere((item) => item.id == statusId));
+      _showMessage('Update deleted.');
+    } on ApiException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (_) {
+      if (mounted) _showMessage('Could not delete this status.');
+    }
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -147,7 +243,7 @@ class StatusScreenState extends State<StatusScreen> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: recent.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 16),
+                        separatorBuilder: (_, _) => const SizedBox(width: 16),
                         itemBuilder: (_, index) => _storyBubble(recent[index]),
                       ),
                     ),
@@ -384,7 +480,7 @@ class StatusScreenState extends State<StatusScreen> {
                   ? Image.network(
                       status.image,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _avatarPlaceholder(),
+                      errorBuilder: (_, _, _) => _avatarPlaceholder(),
                     )
                   : _avatarPlaceholder(video: isVideo),
             ),
@@ -473,6 +569,32 @@ class StatusScreenState extends State<StatusScreen> {
             _timeAgo(status.time),
             style: const TextStyle(fontSize: 10, color: _muted),
           ),
+          if (status.isMine)
+            PopupMenuButton<String>(
+              tooltip: 'Manage update',
+              onSelected: (action) {
+                if (action == 'edit') _editStatusCaption(status);
+                if (action == 'delete') _deleteStatus(status);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: ListTile(
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('Edit caption'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline, color: Colors.red),
+                    title: Text('Delete update'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     ),

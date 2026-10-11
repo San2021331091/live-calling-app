@@ -57,7 +57,7 @@ class UserProfileScreen extends StatelessWidget {
                 Text(
                   name,
                   style: const TextStyle(
-                    color: const Color(0xFF17251F),
+                    color: Color(0xFF17251F),
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
@@ -88,7 +88,7 @@ class UserProfileScreen extends StatelessWidget {
                 _actionButton(Icons.message_outlined, "Message", const Color(0xFF168A62), () {
                   ChatModel chat = ChatModel(
                     name: name,
-                    img: imageUrl!,
+                    img: imageUrl ?? '',
                     isGroup: false,
                   );
                   Navigator.push(

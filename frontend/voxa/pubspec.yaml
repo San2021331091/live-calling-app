@@ -55,6 +55,8 @@ dependencies:
 
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
 
@@ -98,8 +100,9 @@ flutter:
     - family: Poppins
       fonts:
         - asset: fonts/Poppins-Bold.ttf
+          weight: 700
         - asset: fonts/Poppins-Regular.ttf
-        - asset: fonts/Poppins-Regular.ttf
+        - asset: fonts/Poppins-Italic.ttf
           style: italic
   #   - family: Trajan Pro
   #     fonts:

@@ -111,6 +111,71 @@ func (a *application) handleCreateStatus(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, item)
 }
 
+func (a *application) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	statusID := r.PathValue("statusID")
+	if !uuidPattern.MatchString(statusID) {
+		writeError(w, http.StatusBadRequest, "invalid status ID")
+		return
+	}
+	var request struct {
+		Caption string `json:"caption"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	request.Caption = strings.TrimSpace(request.Caption)
+	if utf8.RuneCountInString(request.Caption) > 500 {
+		writeError(w, http.StatusBadRequest, "status caption is too long")
+		return
+	}
+	result, err := a.db.ExecContext(r.Context(),
+		`UPDATE statuses SET caption = $3
+		 WHERE id = $1 AND user_id = $2 AND expires_at > now()`,
+		statusID, authenticatedUserID(r), request.Caption,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update status")
+		return
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update status")
+		return
+	}
+	if updated == 0 {
+		writeError(w, http.StatusNotFound, "status not found or expired")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"updated": true})
+}
+
+func (a *application) handleDeleteStatus(w http.ResponseWriter, r *http.Request) {
+	statusID := r.PathValue("statusID")
+	if !uuidPattern.MatchString(statusID) {
+		writeError(w, http.StatusBadRequest, "invalid status ID")
+		return
+	}
+	result, err := a.db.ExecContext(r.Context(),
+		`DELETE FROM statuses WHERE id = $1 AND user_id = $2`,
+		statusID, authenticatedUserID(r),
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete status")
+		return
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete status")
+		return
+	}
+	if deleted == 0 {
+		writeError(w, http.StatusNotFound, "status not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
 func (a *application) handleViewStatus(w http.ResponseWriter, r *http.Request) {
 	statusID := r.PathValue("statusID")
 	if !uuidPattern.MatchString(statusID) {

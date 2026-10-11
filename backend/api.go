@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	fiberwebsocket "github.com/gofiber/websocket/v2"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
 type contextKey string
@@ -39,7 +40,7 @@ func (a *application) routes() *fiber.App {
 			c.Set("Access-Control-Allow-Origin", origin)
 			c.Append("Vary", "Origin")
 			c.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			c.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+			c.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		}
 		if c.Method() == fiber.MethodOptions {
 			return c.SendStatus(fiber.StatusNoContent)
@@ -58,8 +59,9 @@ func (a *application) routes() *fiber.App {
 			return adaptor.HTTPHandler(adapted)(c)
 		})
 	}
-	register("GET", "/healthz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+
+	register("GET", "/", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "Your server is running!"})
 	}))
 	register("GET", "/readyz", http.HandlerFunc(a.handleReady))
 	register("POST", "/api/auth/register", http.HandlerFunc(a.handleRegister))
@@ -72,9 +74,17 @@ func (a *application) routes() *fiber.App {
 	register("POST", "/api/chats/direct", a.auth(http.HandlerFunc(a.handleCreateDirectChat)))
 	register("POST", "/api/chats/groups", a.auth(http.HandlerFunc(a.handleCreateGroupChat)))
 	register("POST", "/api/chats/communities", a.auth(http.HandlerFunc(a.handleCreateCommunity)))
+	register("PATCH", "/api/chats/:chatID", a.auth(http.HandlerFunc(a.handleUpdateGroupChat)), "chatID")
+	register("DELETE", "/api/chats/:chatID", a.auth(http.HandlerFunc(a.handleDeleteGroupChat)), "chatID")
 	register("GET", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleMessages)), "chatID")
+	register("DELETE", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleClearChatHistory)), "chatID")
+	register("PATCH", "/api/chats/:chatID/preferences", a.auth(http.HandlerFunc(a.handleChatPreferences)), "chatID")
+	register("GET", "/api/chats/:chatID/members", a.auth(http.HandlerFunc(a.handleListChatMembers)), "chatID")
+	register("POST", "/api/chats/:chatID/calls", a.auth(http.HandlerFunc(a.handleCreateGroupCall)), "chatID")
 	register("GET", "/api/statuses", a.auth(http.HandlerFunc(a.handleListStatuses)))
 	register("POST", "/api/statuses", a.auth(http.HandlerFunc(a.handleCreateStatus)))
+	register("PATCH", "/api/statuses/:statusID", a.auth(http.HandlerFunc(a.handleUpdateStatus)), "statusID")
+	register("DELETE", "/api/statuses/:statusID", a.auth(http.HandlerFunc(a.handleDeleteStatus)), "statusID")
 	register("POST", "/api/statuses/:statusID/view", a.auth(http.HandlerFunc(a.handleViewStatus)), "statusID")
 	register("POST", "/api/media/upload", a.auth(http.HandlerFunc(a.handleUploadMedia)))
 	register("GET", "/api/calls", a.auth(http.HandlerFunc(a.handleCallHistory)))
@@ -84,7 +94,11 @@ func (a *application) routes() *fiber.App {
 	register("POST", "/api/calls/:callID/signal", a.auth(http.HandlerFunc(a.handleCallSignal)), "callID")
 	register("GET", "/api/calls/:callID/signals", a.auth(http.HandlerFunc(a.handleCallSignals)), "callID")
 	register("POST", "/api/calls/:callID/end", a.auth(http.HandlerFunc(a.handleEndCall)), "callID")
-	register("GET", "/ws/:chatID", http.HandlerFunc(a.handleWebSocket), "chatID")
+	server.Get(
+		"/ws/:chatID",
+		a.authorizeChatWebSocket,
+		fiberwebsocket.New(a.handleWebSocket),
+	)
 	return server
 }
 

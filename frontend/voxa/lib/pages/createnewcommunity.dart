@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/services/api_client.dart';
@@ -16,9 +14,7 @@ class AddCommunityInfo extends StatefulWidget {
 }
 
 class _AddCommunityInfoState extends State<AddCommunityInfo> {
-  File? _communityImage;
   final TextEditingController _nameController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
   final Set<String> selectedGroups = {}; // Track selected groups
   List<UserModel> _users = [];
   bool _isLoading = true;
@@ -91,98 +87,6 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: source,
-      imageQuality: 80,
-    );
-    if (pickedFile != null) {
-      setState(() {
-        _communityImage = File(pickedFile.path);
-      });
-    }
-  }
-
-  void _showImageSourceOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 15),
-              const Text(
-                "Select Image Source",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildImageOption(
-                    icon: Icons.camera_alt,
-                    label: "Camera",
-                    onTap: () {
-                      Navigator.pop(context);
-                      _pickImage(ImageSource.camera);
-                    },
-                  ),
-                  _buildImageOption(
-                    icon: Icons.photo_library,
-                    label: "Gallery",
-                    onTap: () {
-                      Navigator.pop(context);
-                      _pickImage(ImageSource.gallery);
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildImageOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(50),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF168A62),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 30),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,22 +113,13 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
             ),
             const SizedBox(height: 30),
 
-            // Community Image
-            GestureDetector(
-              onTap: _showImageSourceOptions,
-              child: CircleAvatar(
-                radius: 60,
-                backgroundColor: const Color(0xFFDCE9E1),
-                backgroundImage: _communityImage != null
-                    ? FileImage(_communityImage!)
-                    : null,
-                child: _communityImage == null
-                    ? const Icon(
-                        Icons.camera_alt,
-                        size: 40,
-                        color: Color(0xFF168A62),
-                      )
-                    : null,
+            const CircleAvatar(
+              radius: 48,
+              backgroundColor: Color(0xFFDCE9E1),
+              child: Icon(
+                Icons.groups_rounded,
+                size: 40,
+                color: Color(0xFF168A62),
               ),
             ),
             const SizedBox(height: 20),
@@ -289,9 +184,12 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                                 user.id,
                               );
                               return ListTile(
-                                  leading: const CircleAvatar(
+                                leading: const CircleAvatar(
                                   backgroundColor: Color(0xFFE8F3ED),
-                                  child: Icon(Icons.person, color: Color(0xFF168A62)),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Color(0xFF168A62),
+                                  ),
                                 ),
                                 title: Text(user.name),
                                 subtitle: Text(user.phone),

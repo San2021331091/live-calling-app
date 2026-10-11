@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:country_code_picker/country_code_picker.dart';
-import 'package:voxa/colors/colors.dart';
 import 'package:voxa/services/api_client.dart';
 import 'package:voxa/screens/homescreen.dart';
 import 'package:voxa/screens/loginscreen.dart';
@@ -63,7 +62,17 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(gradient: AppColor.backgroundGradient),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0B5D3B),
+              Color(0xFF087A4A),
+              Color(0xFF064A32),
+            ],
+          ),
+        ),
         child: SafeArea(
           child: SingleChildScrollView(
             child: SizedBox(
@@ -89,7 +98,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color:  Color(0xFF17251F),
+                          color: Colors.white,
                         ),
                       ),
 
@@ -101,7 +110,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
                             : 'Login with your phone number',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Color(0xFF56645C),
+                          color: Colors.white,
                           fontSize: 13,
                         ),
                       ),
@@ -215,7 +224,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF168A62),
+                            backgroundColor: const Color(0xFF075E3D),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -258,7 +267,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
                               ? 'Already have an account? Login'
                               : 'New to Voxa? Create an account',
                           style: const TextStyle(
-                            color: Color(0xFF168A62),
+                            color: Colors.white,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -267,8 +276,8 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
                       const Text(
                         'By continuing you agree to our Terms & Privacy Policy',
                         textAlign: TextAlign.center,
-                        style:  TextStyle(
-                          color: Color(0xFF5F6D65),
+                        style: TextStyle(
+                          color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),

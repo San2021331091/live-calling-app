@@ -22,7 +22,7 @@ go run .
 
 At startup the backend checks its PostgreSQL connection and applies any pending SQL files in `backend/migrations/`. This creates the `users`, `chats`, `chat_members`, and `messages` tables; the migration history is kept in `schema_migrations`. No manual table setup is required.
 
-The API listens on port `8080` by default. `GET /healthz` checks that the service is running and `GET /readyz` checks its database connection.
+The API listens on port `8080` by default. `GET /` checks that the service is running and `GET /readyz` checks its database connection.
 
 ## Run the Flutter app
 
@@ -49,9 +49,66 @@ The client uses Google's public STUN servers by default. These servers help peer
 - Create an account or sign in with an international phone number and password. The backend normalizes phone numbers, hashes passwords with bcrypt, and returns a 24-hour JWT.
 - Tokens are stored using the platform's secure storage and sent as Bearer tokens to protected HTTP endpoints.
 - Users can start direct chats with registered accounts, create groups, and create categorized communities with selected members.
+- Group/community creators can rename or delete their conversations. Users can edit or delete their own status captions and manage phone contacts through the device contacts app.
 - Chat history is persisted in PostgreSQL. Each conversation uses an authenticated WebSocket at `/ws/{chatId}`; send `{"type":"message","content":"Hello"}` to save and broadcast a message to the conversation's connected members.
 - The REST API exposes `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/users`, `GET /api/chats`, `POST /api/chats/direct`, `POST /api/chats/groups`, `POST /api/chats/communities`, and `GET /api/chats/{chatId}/messages`. Protected endpoints require `Authorization: Bearer <token>`.
 
 ## Flutter project
 
 The app source is in [`frontend/voxa`](./frontend/voxa). Run `flutter pub get` there after cloning. The chat and contact lists load registered accounts and conversations from the backend; direct, group, and community text messages use the same persisted WebSocket chat service.
+
+## Current interface and verification
+
+The home screen opens on Chats and provides bottom navigation for Updates,
+Communities, and Calls. Conversation search and All/Direct/Groups filters operate
+on backend conversations. The inbox refreshes every five seconds while the app
+is active and refreshes when returning from a conversation. Pull to refresh and
+connection errors remain visible.
+
+Startup checks a stored session immediately. Valid sessions open the inbox;
+expired sessions return to sign in, and connection failures provide a retry.
+Messages clear their drafts only after a matching server confirmation that the
+message was saved. A confirmation is not a delivery or read receipt. After a
+confirmation timeout, check the conversation before retrying to avoid duplicates.
+
+Group permission toggles, disappearing-message settings, and profile/group/
+community photo pickers were removed because the backend did not persist those
+settings or photos. The conversation overview reports loaded message counts and
+the latest message; it does not generate AI summaries. No sample conversations,
+contacts, statuses, or call records are added.
+
+Media sharing requires the ImgBB and Cloudinary configuration described in
+`frontend/voxa/.env.example`. Cross-network calling requires a working TURN
+configuration. Background push notifications, end-to-end encryption, read
+receipts, and WhatsApp feature parity are not implemented. Validate calls and
+media on physical devices before deploying.
+
+Run `go test ./...` and `go vet ./...` in `backend`. Run `flutter analyze --no-pub`
+and `flutter test --no-pub` in `frontend/voxa`. The Flutter tests cover startup,
+server-confirmed sends, rejected sends, disconnected sends, and media previews.
+
+## Current behavior and verification
+
+The home screen opens on Chats and uses bottom navigation for Updates, Communities, and Calls. The inbox refreshes from the backend every five seconds while the app is active, supports conversation search and direct/group filters, and refreshes when returning from a conversation. Saved sessions are validated at startup; a connection error offers Retry without erasing the saved token.
+
+Text drafts clear only after the backend broadcasts the persisted message with its client correlation ID. A timeout or disconnect keeps the draft and asks the user to check history before retrying, because a message may have reached the database before confirmation was lost. Restart the backend alongside this frontend update so the confirmation protocol is available. This confirms server persistence; delivery and read receipts are not implemented.
+
+Unsupported local-only group permission/disappearing-message settings and profile/group/community photo pickers have been removed. Names, profile bios, conversations, statuses, and calls continue to use the backend. Conversation overview reports counts from loaded history, without inferred topics. History currently loads the latest 100 messages. Background incoming-call push notifications and end-to-end encryption are not implemented. Media uploads require the configured ImgBB/Cloudinary providers, and cross-network calls may require TURN.
+
+Verification commands:
+
+```powershell
+# backend/
+go test ./...
+# frontend/voxa/
+flutter analyze --no-pub
+flutter test --no-pub
+```
+
+On the current Windows machine, Application Control blocks `flutter_tester.exe`, so Flutter tests cannot execute until that executable is permitted by the machine policy. Static analysis can run normally.
+
+## Media editing
+
+Photo and video attachments in direct/group chats and status updates open the editor before upload. Add text with the text tool, insert emoji stickers with the emoji tool, and drag either overlay to position it. Double-tap an overlay to remove it. Text size applies to the latest overlay; drawing supports color selection and undo. Photo exports include the displayed overlays, rotation, and optional square crop. Captions are sent with the attachment.
+
+Android video edits are exported as MP4 files with trim boundaries, optional audio removal, and burned-in text/emoji/drawing overlays. Unedited videos can be shared directly; edited video export currently requires Android. Video editing uses Media3 1.9.2 to match the installed video player dependency. A fresh APK installation is required for the new native exporter; hot reload alone cannot install the Android channel.

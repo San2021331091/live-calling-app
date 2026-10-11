@@ -56,8 +56,9 @@ class _SelectContactState extends State<SelectContact> {
     } on ApiException catch (exception) {
       if (mounted) _showError(exception.message);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         _showError('Could not start this chat. Check your connection.');
+      }
     }
   }
 
@@ -132,7 +133,6 @@ class _SelectContactState extends State<SelectContact> {
             onSelected: (value) {
               switch (value) {
                 case 'invite':
-                  print('Invite a friend');
                   break;
                 case 'contacts':
                   {
@@ -143,10 +143,8 @@ class _SelectContactState extends State<SelectContact> {
                   }
                   break;
                 case 'refresh':
-                  print('Refresh');
                   break;
                 case 'help':
-                  print('Help');
                   break;
               }
             },
@@ -252,8 +250,8 @@ class _SelectContactState extends State<SelectContact> {
   Widget _userTile(UserModel user) {
     return ListTile(
       leading: const CircleAvatar(
-        backgroundColor: const Color(0xFFE8F3ED),
-        child: const Icon(Icons.person, color: Color(0xFF168A62)),
+        backgroundColor: Color(0xFFE8F3ED),
+        child: Icon(Icons.person, color: Color(0xFF168A62)),
       ),
       title: Text(user.name),
       subtitle: Text(user.phone),

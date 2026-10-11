@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voxa/screens/capturephoto.dart';
+import 'package:voxa/screens/editimage.dart';
 import 'package:voxa/media/media_result.dart';
 
 class CameraPage extends StatefulWidget {
@@ -32,8 +33,9 @@ class _CameraPageState extends State<CameraPage> {
   Future<void> _initCamera() async {
     try {
       cameras = await availableCameras();
-      if (cameras!.isEmpty)
+      if (cameras!.isEmpty) {
         throw CameraException('no_camera', 'No camera is available');
+      }
       _controller = CameraController(
         cameras![selectedCameraIndex],
         ResolutionPreset.high,
@@ -48,13 +50,35 @@ class _CameraPageState extends State<CameraPage> {
 
   /// -------- GALLERY --------
   Future<void> _pickFromGallery() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (image == null || !mounted) return;
-
-    final result = await Navigator.push<MediaResult>(
-      context,
-      MaterialPageRoute(builder: (_) => CapturePhoto(file: File(image.path))),
+    final isVideo = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_outlined),
+              title: const Text('Photo'),
+              onTap: () => Navigator.pop(sheetContext, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library_outlined),
+              title: const Text('Video'),
+              onTap: () => Navigator.pop(sheetContext, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (isVideo == null || !mounted) return;
+    final media = isVideo
+        ? await _picker.pickVideo(source: ImageSource.gallery)
+        : await _picker.pickImage(source: ImageSource.gallery);
+    if (media == null || !mounted) return;
+    final result = await Navigator.of(context).push<MediaResult>(
+      MaterialPageRoute(
+        builder: (_) => EditImage(file: File(media.path), isVideo: isVideo),
+      ),
     );
     if (result != null && mounted) await _returnMedia(result);
   }
@@ -100,9 +124,12 @@ class _CameraPageState extends State<CameraPage> {
         maxDuration: const Duration(seconds: 60),
       );
       if (video != null && mounted) {
-        await _returnMedia(
-          MediaResult(file: File(video.path), isVideo: true, caption: ''),
+        final edited = await Navigator.of(context).push<MediaResult>(
+          MaterialPageRoute(
+            builder: (_) => EditImage(file: File(video.path), isVideo: true),
+          ),
         );
+        if (edited != null && mounted) await _returnMedia(edited);
       }
     } catch (error) {
       if (mounted) {

@@ -13,6 +13,7 @@ class WebRtcCallSession {
     required this.onStatusChanged,
     required this.onRemoteStream,
     required this.onError,
+    this.externalLocalStream,
   });
 
   final String callId;
@@ -22,6 +23,7 @@ class WebRtcCallSession {
   final void Function(String status) onStatusChanged;
   final void Function(MediaStream? stream) onRemoteStream;
   final void Function(String error) onError;
+  final MediaStream? externalLocalStream;
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
@@ -36,7 +38,7 @@ class WebRtcCallSession {
 
   Future<void> start() async {
     onStatusChanged(isIncoming ? 'Connecting...' : 'Calling...');
-    _localStream = await navigator.mediaDevices.getUserMedia({
+    _localStream = externalLocalStream ?? await navigator.mediaDevices.getUserMedia({
       'audio': true,
       'video': media == CallMedia.video
           ? {'facingMode': 'user'}

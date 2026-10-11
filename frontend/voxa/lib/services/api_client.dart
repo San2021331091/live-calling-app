@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -14,8 +15,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ApiException implements Exception {
   final String message;
+  final int? statusCode;
 
-  const ApiException(this.message);
+  const ApiException(this.message, {this.statusCode});
 
   @override
   String toString() => message;
@@ -55,6 +57,18 @@ class ApiClient {
     return uri;
   }
 
+  Future<void> updateGroupName(String chatId, String name) async {
+    await _request(
+      _baseUri.resolve('api/chats/$chatId'),
+      method: 'PATCH',
+      body: {'name': name},
+    );
+  }
+
+  Future<void> deleteGroup(String chatId) async {
+    await _request(_baseUri.resolve('api/chats/$chatId'), method: 'DELETE');
+  }
+
   String get userId => _cachedUserId;
   String _cachedUserId = '';
 
@@ -62,6 +76,11 @@ class ApiClient {
   String _cachedUserName = '';
 
   Future<String?> get _token => _storage.read(key: _tokenKey);
+
+  Future<bool> hasStoredSession() async {
+    final token = await _token;
+    return token != null && token.isNotEmpty;
+  }
 
   Future<void> register({
     required String name,
@@ -106,19 +125,22 @@ class ApiClient {
 
   Future<UserModel> loadCurrentUser() async {
     final result = await _request(_baseUri.resolve('api/auth/me'));
-    return UserModel.fromJson(result);
+    final user = UserModel.fromJson(result);
+    _cachedUserId = user.id;
+    _cachedUserName = user.name;
+    return user;
   }
 
   Future<UserModel> updateProfile({String? name, String? bio}) async {
     final result = await _request(
       _baseUri.resolve('api/profile'),
       method: 'PATCH',
-      body: {
-        if (name != null) 'name': name,
-        if (bio != null) 'bio': bio,
-      },
+      body: {'name': ?name, 'bio': ?bio},
     );
-    return UserModel.fromJson(result);
+    final user = UserModel.fromJson(result);
+    _cachedUserName = user.name;
+    await _storage.write(key: _userNameKey, value: user.name);
+    return user;
   }
 
   Future<void> signOut() async {
@@ -139,6 +161,28 @@ class ApiClient {
     return users
         .map((item) => UserModel.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<UserModel?> findUserByPhone(String phone) async {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (!RegExp(r'^[+()\-\s.0-9]+$').hasMatch(phone) ||
+        digits.length < 6 ||
+        digits.length > 15) {
+      throw const ApiException('Enter a valid phone number with country code');
+    }
+
+    final currentUser = await loadCurrentUser();
+    if (currentUser.phone.replaceAll(RegExp(r'\D'), '') == digits) {
+      return currentUser;
+    }
+
+    final users = await loadUsers(query: digits);
+    for (final user in users) {
+      if (user.phone.replaceAll(RegExp(r'\D'), '') == digits) {
+        return user;
+      }
+    }
+    return null;
   }
 
   Future<List<ChatModel>> loadChats() async {
@@ -190,9 +234,16 @@ class ApiClient {
     return ChatModel.fromJson(result);
   }
 
-  Future<List<MessageModel>> loadMessages(String chatId) async {
+  Future<List<MessageModel>> loadMessages(
+    String chatId, {
+    String? beforeId,
+  }) async {
     final result = await _request(
-      _baseUri.resolve('api/chats/$chatId/messages'),
+      _baseUri
+          .resolve('api/chats/$chatId/messages')
+          .replace(
+            queryParameters: beforeId == null ? null : {'before_id': beforeId},
+          ),
     );
     final messages = result['messages'];
     if (messages is! List) {
@@ -205,11 +256,29 @@ class ApiClient {
         .toList();
   }
 
+  Future<DateTime> clearChatHistory(String chatId) async {
+    final result = await _request(
+      _baseUri.resolve('api/chats/$chatId/messages'),
+      method: 'DELETE',
+    );
+    return DateTime.parse(result['cleared_before'] as String);
+  }
+
+  Future<void> setChatMuted(String chatId, bool muted) async {
+    await _request(
+      _baseUri.resolve('api/chats/$chatId/preferences'),
+      method: 'PATCH',
+      body: {'muted': muted},
+    );
+  }
+
   Future<List<StatusModel>> loadStatuses() async {
     final result = await _request(_baseUri.resolve('api/statuses'));
     final statuses = result['statuses'];
     if (statuses is! List) {
-      throw const ApiException('The server returned an invalid statuses response');
+      throw const ApiException(
+        'The server returned an invalid statuses response',
+      );
     }
     return statuses
         .map((item) => StatusModel.fromJson(item as Map<String, dynamic>))
@@ -221,6 +290,21 @@ class ApiClient {
       _baseUri.resolve('api/statuses/$statusId/view'),
       method: 'POST',
       body: const {},
+    );
+  }
+
+  Future<void> updateStatusCaption(String statusId, String caption) async {
+    await _request(
+      _baseUri.resolve('api/statuses/$statusId'),
+      method: 'PATCH',
+      body: {'caption': caption},
+    );
+  }
+
+  Future<void> deleteStatus(String statusId) async {
+    await _request(
+      _baseUri.resolve('api/statuses/$statusId'),
+      method: 'DELETE',
     );
   }
 
@@ -256,7 +340,73 @@ class ApiClient {
   }
 
   Future<void> sendMessage(WebSocketChannel channel, String content) async {
-    channel.sink.add(jsonEncode({'type': 'message', 'content': content}));
+    if (content.trim().isEmpty || content.runes.length > 5000) {
+      throw const ApiException('Messages must contain 1 to 5000 characters.');
+    }
+    final clientId =
+        '${DateTime.now().microsecondsSinceEpoch}-${_messageSequence++}';
+    final pending = _pendingMessages.putIfAbsent(channel, () => {});
+    final completion = Completer<void>();
+    pending[clientId] = completion;
+    try {
+      channel.sink.add(
+        jsonEncode({
+          'type': 'message',
+          'content': content,
+          'client_id': clientId,
+        }),
+      );
+      await completion.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw const ApiException(
+            'No confirmation received. Check the conversation before retrying.',
+          );
+        },
+      );
+    } finally {
+      pending.remove(clientId);
+      if (pending.isEmpty) _pendingMessages.remove(channel);
+    }
+  }
+
+  int _messageSequence = 0;
+  final Map<WebSocketChannel, Map<String, Completer<void>>> _pendingMessages =
+      {};
+
+  void handleChatEvent(WebSocketChannel? channel, Map<String, dynamic> event) {
+    final message = event['message'];
+    final id =
+        event['type'] == 'message' &&
+            message is Map<String, dynamic> &&
+            message['is_me'] == true
+        ? message['client_id']
+        : event['client_id'];
+    final completion = _pendingMessages[channel]?[id];
+    if (completion == null || completion.isCompleted) return;
+    if (event['type'] == 'error') {
+      completion.completeError(
+        ApiException(
+          event['error'] as String? ?? 'Message could not be saved.',
+        ),
+      );
+    } else if (event['type'] == 'message') {
+      completion.complete();
+    }
+  }
+
+  void chatDisconnected(WebSocketChannel? channel) {
+    final pending = _pendingMessages.remove(channel);
+    if (pending == null) return;
+    for (final completion in pending.values) {
+      if (!completion.isCompleted) {
+        completion.completeError(
+          const ApiException(
+            'Connection lost before confirmation. Check the conversation before retrying.',
+          ),
+        );
+      }
+    }
   }
 
   Future<List<CallModel>> loadCallHistory() async {
@@ -276,6 +426,43 @@ class ApiClient {
           ),
         )
         .toList();
+  }
+
+  Future<List<UserModel>> loadChatMembers(String chatId) async {
+    final result = await _request(
+      _baseUri.resolve('api/chats/$chatId/members'),
+    );
+    final members = result['members'];
+    if (members is! List) {
+      throw const ApiException(
+        'The server returned an invalid chat members response',
+      );
+    }
+    return members
+        .map((item) => UserModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> startGroupCall({
+    required String chatId,
+    required CallMedia media,
+    String status = 'started',
+  }) async {
+    final result = await _request(
+      _baseUri.resolve('api/chats/$chatId/calls'),
+      method: 'POST',
+      body: {
+        'kind': media == CallMedia.video ? 'video' : 'audio',
+        'status': status,
+      },
+    );
+    final calls = result['calls'];
+    if (calls is! List || calls.isEmpty) {
+      throw const ApiException(
+        'The server returned an invalid group call response',
+      );
+    }
+    return result;
   }
 
   Future<CallModel> createCall({
@@ -406,6 +593,12 @@ class ApiClient {
         },
         body: body ?? const {},
       ),
+      'DELETE' => _sendRequest(
+        () => _dio.deleteUri<dynamic>(
+          uri,
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        ),
+      ),
       _ => _get(uri, headers: {'Authorization': 'Bearer $token'}),
     };
     return _decodeResponse(response);
@@ -483,6 +676,7 @@ class ApiClient {
     if (statusCode < 200 || statusCode >= 300) {
       throw ApiException(
         decoded['error'] as String? ?? 'Request failed ($statusCode)',
+        statusCode: statusCode,
       );
     }
     return decoded;

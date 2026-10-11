@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 class ChatModel {
+  final bool muted;
+  final DateTime? lastMessageAt;
+  final String lastSenderId;
   final String name;
   final String img;
   final String? id;
@@ -6,12 +11,15 @@ class ChatModel {
   final String? peerPhone;
   final bool? isGroup;
   final bool? isCommunity;
-  final String ? about;
+  final bool isCreator;
+  final String? about;
   final String? currentMessage;
   final String? time;
-  
 
   const ChatModel({
+    this.muted = false,
+    this.lastMessageAt,
+    this.lastSenderId = '',
     required this.name,
     required this.img,
     this.id,
@@ -19,6 +27,7 @@ class ChatModel {
     this.peerPhone,
     this.isGroup,
     this.isCommunity,
+    this.isCreator = false,
     this.about,
     this.currentMessage,
     this.time,
@@ -28,18 +37,43 @@ class ChatModel {
     final lastMessageAt = json['last_message_at'] as String?;
     return ChatModel(
       id: json['id'] as String?,
-      name: json['name'] as String? ?? 'Unknown',
+      muted: json['muted'] as bool? ?? false,
+      lastMessageAt: lastMessageAt == null
+          ? null
+          : DateTime.parse(lastMessageAt),
+      lastSenderId: json['last_sender_id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
       img: '',
       peerId: json['peer_id'] as String?,
       peerPhone: json['peer_phone'] as String?,
       isGroup: json['is_group'] as bool? ?? false,
       isCommunity: json['is_community'] as bool? ?? false,
+      isCreator: json['is_creator'] as bool? ?? false,
       about: json['community_type'] as String?,
-      currentMessage: json['current_message'] as String? ?? '',
+      currentMessage: previewContent(json['current_message'] as String? ?? ''),
       time: lastMessageAt == null
           ? ''
           : _formatTime(DateTime.parse(lastMessageAt).toLocal()),
     );
+  }
+
+  static String previewContent(String content) {
+    try {
+      final media = jsonDecode(content);
+      if (media is Map<String, dynamic> && media['_voxa_media'] == true) {
+        final label = switch (media['type']) {
+          'image' => 'Photo',
+          'video' => 'Video',
+          'audio' => 'Voice message',
+          _ => 'Attachment',
+        };
+        final caption = media['caption'] as String? ?? '';
+        return caption.isNotEmpty
+            ? '$label: $caption'
+            : (media['name'] as String? ?? label);
+      }
+    } catch (_) {}
+    return content;
   }
 
   static String _formatTime(DateTime value) {

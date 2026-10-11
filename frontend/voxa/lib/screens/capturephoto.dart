@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:voxa/media/media_result.dart';
 import 'package:voxa/screens/editimage.dart';
 
-
 class CapturePhoto extends StatefulWidget {
   final File? file;
 
@@ -59,11 +58,10 @@ class _CapturePhotoState extends State<CapturePhoto> {
   Future<void> _openImage(File file) async {
     final result = await Navigator.push<MediaResult>(
       context,
-      MaterialPageRoute(
-        builder: (_) => EditImage(file: file),
-      ),
+      MaterialPageRoute(builder: (_) => EditImage(file: file)),
     );
-    if (mounted && result != null) Navigator.pop(context, result);
+    if (!mounted) return;
+    if (result != null || widget.file != null) Navigator.pop(context, result);
   }
 
   /// 📸 Take photo
@@ -77,15 +75,17 @@ class _CapturePhotoState extends State<CapturePhoto> {
       final XFile file = await _controller!.takePicture();
       _isBusy = false;
 
+      final currentContext = context;
+      if (!mounted || !currentContext.mounted) return;
+
       final result = await Navigator.push<MediaResult>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EditImage(file: File(file.path)),
-        ),
+        currentContext,
+        MaterialPageRoute(builder: (_) => EditImage(file: File(file.path))),
       );
 
+      if (!mounted || !currentContext.mounted) return;
       if (result != null) {
-        Navigator.pop(context, result);
+        Navigator.pop(currentContext, result);
       }
     } catch (e) {
       _isBusy = false;

@@ -1,6 +1,20 @@
 enum CallType { incoming, outgoing, missed }
 enum CallMedia { audio, video }
 
+class GroupCallParticipant {
+  const GroupCallParticipant({
+    required this.callId,
+    required this.peerId,
+    required this.peerName,
+    this.peerAvatar = '',
+  });
+
+  final String callId;
+  final String peerId;
+  final String peerName;
+  final String peerAvatar;
+}
+
 class CallModel {
   final String id;
   final String name;
@@ -32,7 +46,7 @@ class CallModel {
     final callerId = json['caller_id'] as String? ?? '';
     final calleeId = json['callee_id'] as String? ?? '';
     final peerId = (json['peer_id'] as String?) ?? (currentUserId == callerId ? calleeId : callerId);
-    final displayName = (json['peer_name'] as String?) ?? 'Unknown contact';
+    final displayName = (json['peer_name'] as String?) ?? '';
     final normalizedType = status == 'missed'
         ? CallType.missed
         : currentUserId == callerId
@@ -41,8 +55,8 @@ class CallModel {
 
     return CallModel(
       id: json['id'] as String? ?? '',
-      name: displayName,
-      avatar: 'https://i.pravatar.cc/150?u=$peerId',
+      name: displayName.isEmpty ? 'Contact' : displayName,
+      avatar: '',
       time: startedAt,
       type: normalizedType,
       media: kind == 'video' ? CallMedia.video : CallMedia.audio,

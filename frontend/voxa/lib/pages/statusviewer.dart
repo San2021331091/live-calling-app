@@ -57,7 +57,7 @@ class _StatusViewerState extends State<StatusViewer> with SingleTickerProviderSt
               : const CircularProgressIndicator(color: _green))
         else
           Image.network(widget.status.image, fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48))),
+            errorBuilder: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48))),
         const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.center,
           colors: [Color(0x99000000), Colors.transparent],
@@ -71,7 +71,7 @@ class _StatusViewerState extends State<StatusViewer> with SingleTickerProviderSt
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             AnimatedBuilder(
               animation: _progress,
-              builder: (_, __) => ClipRRect(
+              builder: (_, _) => ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(value: _progress.value, minHeight: 3, backgroundColor: Colors.white38, color: _green),
               ),
@@ -83,7 +83,7 @@ class _StatusViewerState extends State<StatusViewer> with SingleTickerProviderSt
                 decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white70, width: 1.5)),
                 child: ClipOval(child: widget.status.isVideo
                     ? const ColoredBox(color: Color(0xFF1E332A), child: Icon(Icons.person, color: Colors.white))
-                    : Image.network(widget.status.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF1E332A), child: Icon(Icons.person, color: Colors.white)))),
+                    : Image.network(widget.status.image, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF1E332A), child: Icon(Icons.person, color: Colors.white)))),
               ),
               const SizedBox(width: 11),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

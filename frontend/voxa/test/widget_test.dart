@@ -1,30 +1,99 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:voxa/main.dart';
+import 'package:voxa/model/chatmodel.dart';
+import 'package:voxa/services/api_client.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+class TestSink implements WebSocketSink {
+  final sent = <String>[];
+  @override
+  void add(dynamic data) => sent.add(data as String);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class TestChannel implements WebSocketChannel {
+  @override
+  final TestSink sink = TestSink();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('Startup opens sign in immediately when no session exists', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Login'), findsWidgets);
+    expect(find.byType(TextFormField), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('Message sending waits for its own saved server event', () async {
+    final channel = TestChannel();
+    var saved = false;
+    final sending = ApiClient.instance
+        .sendMessage(channel, 'Hello')
+        .then((_) => saved = true);
+    final request =
+        jsonDecode(channel.sink.sent.single) as Map<String, dynamic>;
+    await Future<void>.delayed(Duration.zero);
+    expect(saved, isFalse);
+    ApiClient.instance.handleChatEvent(channel, {
+      'type': 'message',
+      'message': {'client_id': request['client_id'], 'is_me': false},
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(saved, isFalse);
+    ApiClient.instance.handleChatEvent(channel, {
+      'type': 'message',
+      'message': {'client_id': request['client_id'], 'is_me': true},
+    });
+    await sending;
+    expect(saved, isTrue);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('Server rejection reports a failed send', () async {
+    final channel = TestChannel();
+    final sending = ApiClient.instance.sendMessage(channel, 'Hello');
+    final failure = expectLater(sending, throwsA(isA<ApiException>()));
+    final request =
+        jsonDecode(channel.sink.sent.single) as Map<String, dynamic>;
+    ApiClient.instance.handleChatEvent(channel, {
+      'type': 'error',
+      'client_id': request['client_id'],
+      'error': 'Could not save message',
+    });
+    await failure;
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('Disconnect reports unconfirmed messages as failed', () async {
+    final channel = TestChannel();
+    final sending = ApiClient.instance.sendMessage(channel, 'Hello');
+    final failure = expectLater(sending, throwsA(isA<ApiException>()));
+    ApiClient.instance.chatDisconnected(channel);
+    await failure;
+  });
+
+  test('Attachment previews show readable names and captions', () {
+    expect(
+      ChatModel.previewContent(
+        jsonEncode({
+          '_voxa_media': true,
+          'type': 'image',
+          'caption': 'Our trip',
+        }),
+      ),
+      'Photo: Our trip',
+    );
+    expect(ChatModel.previewContent('Hello'), 'Hello');
+    expect(ChatModel.previewContent('{invalid'), '{invalid');
   });
 }

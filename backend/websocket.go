@@ -1,16 +1,18 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
-	"github.com/gorilla/websocket"
+	"github.com/fasthttp/websocket"
+	"github.com/gofiber/fiber/v2"
+	fiberwebsocket "github.com/gofiber/websocket/v2"
 )
 
 const (
@@ -59,6 +61,16 @@ func (h *messageHub) unregister(client *wsClient) {
 	}
 }
 
+func (h *messageHub) closeChat(chatID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	members := h.clients[chatID]
+	delete(h.clients, chatID)
+	for client := range members {
+		close(client.send)
+	}
+}
+
 func (h *messageHub) broadcast(chatID string, saved message) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -82,7 +94,25 @@ func (h *messageHub) broadcast(chatID string, saved message) {
 }
 
 func (h *messageHub) sendError(client *wsClient, message string) {
-	payload, _ := json.Marshal(map[string]string{"type": "error", "error": message})
+	h.sendRequestError(client, message, "")
+}
+
+func (h *messageHub) historyCleared(chatID, userID string, cutoff time.Time) {
+	payload, _ := json.Marshal(map[string]any{"type": "history_cleared", "cleared_before": cutoff})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for client := range h.clients[chatID] {
+		if client.userID == userID {
+			select {
+			case client.send <- payload:
+			default:
+			}
+		}
+	}
+}
+
+func (h *messageHub) sendRequestError(client *wsClient, message, clientID string) {
+	payload, _ := json.Marshal(map[string]string{"type": "error", "error": message, "client_id": clientID})
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, connected := h.clients[client.chatID][client]; !connected {
@@ -94,52 +124,60 @@ func (h *messageHub) sendError(client *wsClient, message string) {
 	}
 }
 
-func (a *application) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+func (a *application) authorizeChatWebSocket(c *fiber.Ctx) error {
+	if !fiberwebsocket.IsWebSocketUpgrade(c) {
+		return c.Status(fiber.StatusUpgradeRequired).JSON(apiError{Error: "WebSocket upgrade required"})
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(c.Get("Authorization"), "Bearer "))
 	if token == "" {
-		token = strings.TrimSpace(r.URL.Query().Get("access_token"))
+		token = strings.TrimSpace(c.Query("access_token"))
 	}
 	userID, err := a.userIDFromToken(token)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
+		return c.Status(fiber.StatusUnauthorized).JSON(apiError{Error: "authentication required"})
 	}
-	chatID := r.PathValue("chatID")
+	chatID := c.Params("chatID")
 	if !uuidPattern.MatchString(chatID) {
-		writeError(w, http.StatusBadRequest, "invalid chat ID")
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(apiError{Error: "invalid chat ID"})
 	}
-	if err := a.requireChatMember(r.Context(), chatID, userID); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+	defer cancel()
+	if err := a.requireChatMember(ctx, chatID, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusForbidden, "you are not a member of this chat")
-			return
+			return c.Status(fiber.StatusForbidden).JSON(apiError{Error: "you are not a member of this chat"})
 		}
-		writeError(w, http.StatusInternalServerError, "could not check chat membership")
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(apiError{Error: "could not check chat membership"})
 	}
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return a.originAllowed(r.Header.Get("Origin")) },
-	}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
+	c.Locals("chatID", chatID)
+	c.Locals("userID", userID)
+	return c.Next()
+}
+
+func (a *application) handleWebSocket(conn *fiberwebsocket.Conn) {
+	chatID := conn.Params("chatID")
+	userID, ok := conn.Locals("userID").(string)
+	if !ok || userID == "" {
 		return
 	}
 	client := &wsClient{
 		chatID: chatID,
 		userID: userID,
-		conn:   conn,
+		conn:   conn.Conn,
 		send:   make(chan []byte, 32),
 	}
 	a.hub.register(client)
+	writerDone := make(chan struct{})
 	defer func() {
 		a.hub.unregister(client)
+		<-writerDone
 		_ = conn.Close()
 	}()
 
-	go client.writePump()
+	go func() {
+		defer close(writerDone)
+		client.writePump()
+	}()
 	conn.SetReadLimit(1 << 20)
 	_ = conn.SetReadDeadline(time.Now().Add(pongTimeout))
 	conn.SetPongHandler(func(string) error {
@@ -148,38 +186,48 @@ func (a *application) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		var incoming struct {
-			Type    string `json:"type"`
-			Content string `json:"content"`
+			Type     string `json:"type"`
+			Content  string `json:"content"`
+			ClientID string `json:"client_id"`
 		}
 		if err := conn.ReadJSON(&incoming); err != nil {
 			break
 		}
 		if incoming.Type != "message" {
-			a.hub.sendError(client, "unsupported WebSocket event")
+			a.hub.sendRequestError(client, "unsupported WebSocket event", incoming.ClientID)
 			continue
 		}
 		content := strings.TrimSpace(incoming.Content)
 		if content == "" || utf8.RuneCountInString(content) > maxMessageRunes {
-			a.hub.sendError(client, "message must contain 1 to 5000 characters")
+			a.hub.sendRequestError(client, "message must contain 1 to 5000 characters", incoming.ClientID)
+			continue
+		}
+		if len(incoming.ClientID) > 100 {
+			a.hub.sendError(client, "invalid client message ID")
 			continue
 		}
 		var saved message
-		err := a.db.QueryRowContext(r.Context(),
+		saved.ClientID = incoming.ClientID
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+		err := a.db.QueryRowContext(ctx,
 			`INSERT INTO messages (chat_id, sender_id, content)
 			 VALUES ($1, $2, $3)
 			 RETURNING id::text, chat_id::text, sender_id::text, content, created_at`,
 			chatID, userID, content,
 		).Scan(&saved.ID, &saved.ChatID, &saved.SenderID, &saved.Content, &saved.CreatedAt)
+		cancel()
 		if err != nil {
-			a.hub.sendError(client, "message could not be saved")
+			a.hub.sendRequestError(client, "message could not be saved", incoming.ClientID)
 			continue
 		}
-		err = a.db.QueryRowContext(r.Context(),
+		ctx, cancel = context.WithTimeout(context.Background(), writeTimeout)
+		err = a.db.QueryRowContext(ctx,
 			`SELECT display_name FROM users WHERE id = $1`,
 			userID,
 		).Scan(&saved.Sender)
+		cancel()
 		if err != nil {
-			a.hub.sendError(client, "message could not be delivered")
+			a.hub.sendRequestError(client, "message could not be delivered", incoming.ClientID)
 			continue
 		}
 		saved.IsMe = true
