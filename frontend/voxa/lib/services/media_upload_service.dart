@@ -2,16 +2,26 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:voxa/services/api_client.dart';
 
 /// Uploads public media with unsigned provider presets. Never put a Cloudinary
 /// API secret in the mobile app; use a signed backend endpoint for private media.
 class MediaUploadService {
   static final Dio _dio = Dio(
-    BaseOptions(connectTimeout: const Duration(seconds: 20),
-      receiveTimeout: const Duration(minutes: 3)),
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(minutes: 3),
+    ),
   );
 
-  static Future<String> upload(File file, {required bool isVideo}) async {
+  static Future<String> upload(
+    File file, {
+    required bool isVideo,
+    bool isDocument = false,
+    String? fileName,
+  }) async {
+    if (isDocument)
+      return ApiClient.instance.uploadAttachment(file, name: fileName);
     if (isVideo) return _uploadCloudinary(file);
     return _uploadImgbb(file);
   }
@@ -22,10 +32,14 @@ class MediaUploadService {
     final response = await _dio.post<dynamic>(
       'https://api.imgbb.com/1/upload',
       queryParameters: {'key': key},
-      data: FormData.fromMap({'image': await MultipartFile.fromFile(file.path)}),
+      data: FormData.fromMap({
+        'image': await MultipartFile.fromFile(file.path),
+      }),
     );
-    final url = (response.data as Map<String, dynamic>)['data']?['url'] as String?;
-    if (url == null || url.isEmpty) throw Exception('ImgBB did not return an image URL');
+    final url =
+        (response.data as Map<String, dynamic>)['data']?['url'] as String?;
+    if (url == null || url.isEmpty)
+      throw Exception('ImgBB did not return an image URL');
     return url;
   }
 
@@ -37,7 +51,9 @@ class MediaUploadService {
         : Uri.tryParse(cloudinaryUrl)?.host ?? '';
     final preset = dotenv.env['CLOUDINARY_UPLOAD_PRESET']?.trim() ?? '';
     if (cloud.isEmpty || preset.isEmpty) {
-      throw Exception('Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET in frontend/voxa/.env');
+      throw Exception(
+        'Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET in frontend/voxa/.env',
+      );
     }
     final response = await _dio.post<dynamic>(
       'https://api.cloudinary.com/v1_1/$cloud/video/upload',
@@ -46,8 +62,10 @@ class MediaUploadService {
         'file': await MultipartFile.fromFile(file.path),
       }),
     );
-    final url = (response.data as Map<String, dynamic>)['secure_url'] as String?;
-    if (url == null || url.isEmpty) throw Exception('Cloudinary did not return a file URL');
+    final url =
+        (response.data as Map<String, dynamic>)['secure_url'] as String?;
+    if (url == null || url.isEmpty)
+      throw Exception('Cloudinary did not return a file URL');
     return url;
   }
 }

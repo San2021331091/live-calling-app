@@ -38,12 +38,12 @@ class WebRtcCallSession {
 
   Future<void> start() async {
     onStatusChanged(isIncoming ? 'Connecting...' : 'Calling...');
-    _localStream = externalLocalStream ?? await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': media == CallMedia.video
-          ? {'facingMode': 'user'}
-          : false,
-    });
+    _localStream =
+        externalLocalStream ??
+        await navigator.mediaDevices.getUserMedia({
+          'audio': true,
+          'video': media == CallMedia.video ? {'facingMode': 'user'} : false,
+        });
     _peerConnection = await createPeerConnection({
       'iceServers': await ApiClient.instance.loadCallIceServers(),
       'sdpSemantics': 'unified-plan',
@@ -68,7 +68,9 @@ class WebRtcCallSession {
         case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
           onStatusChanged('Connecting...');
         case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-          onError('Could not establish a WebRTC connection. Check network or TURN configuration.');
+          onError(
+            'Could not establish a WebRTC connection. Check network or TURN configuration.',
+          );
         case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
           onStatusChanged('Reconnecting...');
         case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
@@ -106,7 +108,9 @@ class WebRtcCallSession {
       final callStatus = batch['status'];
       if (callStatus != 'started' && callStatus != 'active') {
         if (!_closed) {
-          onStatusChanged(callStatus == 'missed' ? 'Call declined' : 'Call ended');
+          onStatusChanged(
+            callStatus == 'missed' ? 'Call declined' : 'Call ended',
+          );
           await close();
         }
         return;
@@ -162,10 +166,7 @@ class WebRtcCallSession {
 
   Future<void> _setRemoteDescription(Map<String, dynamic> value) async {
     await _peerConnection!.setRemoteDescription(
-      RTCSessionDescription(
-        value['sdp'] as String?,
-        value['type'] as String?,
-      ),
+      RTCSessionDescription(value['sdp'] as String?, value['type'] as String?),
     );
     _remoteDescriptionSet = true;
     for (final candidate in _pendingCandidates) {
@@ -176,18 +177,25 @@ class WebRtcCallSession {
 
   Future<void> _sendSignal(String type, Map<String, dynamic> payload) {
     return ApiClient.instance
-        .signalCall(callId: callId, targetId: peerId, type: type, payload: payload)
+        .signalCall(
+          callId: callId,
+          targetId: peerId,
+          type: type,
+          payload: payload,
+        )
         .then((_) {});
   }
 
   void setMicrophoneEnabled(bool enabled) {
-    for (final track in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
+    for (final track
+        in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = enabled;
     }
   }
 
   void setCameraEnabled(bool enabled) {
-    for (final track in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+    for (final track
+        in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = enabled;
     }
   }

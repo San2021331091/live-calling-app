@@ -1,3 +1,5 @@
+import 'package:voxa/customui/delete_chat_dialog.dart';
+import 'package:voxa/services/attachment_actions.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -186,7 +188,7 @@ class _IndividualPageState extends State<IndividualPage> {
       }
       if (decoded['type'] == 'message' &&
           decoded['message'] is Map<String, dynamic>) {
-        final message = MessageModel.fromJson(
+        final message = ApiClient.instance.decodeMessage(
           decoded['message'] as Map<String, dynamic>,
         );
         if (_clearedBefore != null &&
@@ -646,6 +648,9 @@ class _IndividualPageState extends State<IndividualPage> {
                                 case 'Mute Notifications':
                                   _toggleMute();
                                   break;
+                                case 'Delete chat':
+                                  _deleteInboxChat();
+                                  break;
                                 case 'Clear history':
                                   _clearHistory();
                                   break;
@@ -694,6 +699,10 @@ class _IndividualPageState extends State<IndividualPage> {
                                 const PopupMenuItem(
                                   value: 'Clear history',
                                   child: Text('Clear history'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'Delete chat',
+                                  child: Text('Delete chat'),
                                 ),
                               ];
                             },
@@ -1140,13 +1149,7 @@ class _IndividualPageState extends State<IndividualPage> {
             ),
           );
         } else {
-          showDialog<void>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: Text(message.mediaName ?? 'Attachment'),
-              content: SelectableText(message.mediaUrl!),
-            ),
-          );
+          openAttachment(context, message.mediaUrl!);
         }
       },
       child: Row(
@@ -1194,6 +1197,11 @@ class _IndividualPageState extends State<IndividualPage> {
     return (latitude, longitude);
   }
 
+  Future<void> _deleteInboxChat() async {
+    final deleted = await deleteChatFromInbox(context, widget.chatModel.id!);
+    if (deleted && mounted) Navigator.of(context).pop(true);
+  }
+
   Future<void> _uploadAndSend(File file, String type, String name) async {
     var caption = '';
     if (type == 'image' || type == 'video') {
@@ -1216,6 +1224,8 @@ class _IndividualPageState extends State<IndividualPage> {
       final url = await MediaUploadService.upload(
         file,
         isVideo: type != 'image',
+        isDocument: type == 'document',
+        fileName: name,
       );
       final sent = await _sendChatContent(
         jsonEncode({
@@ -1264,10 +1274,7 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   Future<void> pickDocument() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'zip'],
-    );
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
 
     if (result != null) {
       final file = result.files.single;

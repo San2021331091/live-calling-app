@@ -210,9 +210,11 @@ func (a *application) handleWebSocket(conn *fiberwebsocket.Conn) {
 		saved.ClientID = incoming.ClientID
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		err := a.db.QueryRowContext(ctx,
-			`INSERT INTO messages (chat_id, sender_id, content)
-			 VALUES ($1, $2, $3)
-			 RETURNING id::text, chat_id::text, sender_id::text, content, created_at`,
+			`WITH saved AS (
+			 INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3)
+			 RETURNING id, chat_id, sender_id, content, created_at
+			), restored AS (UPDATE chat_members SET hidden = false WHERE chat_id = $1)
+			 SELECT id::text, chat_id::text, sender_id::text, content, created_at FROM saved`,
 			chatID, userID, content,
 		).Scan(&saved.ID, &saved.ChatID, &saved.SenderID, &saved.Content, &saved.CreatedAt)
 		cancel()

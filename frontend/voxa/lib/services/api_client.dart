@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -252,7 +253,7 @@ class ApiClient {
       );
     }
     return messages
-        .map((item) => MessageModel.fromJson(item as Map<String, dynamic>))
+        .map((item) => decodeMessage(item as Map<String, dynamic>))
         .toList();
   }
 
@@ -271,6 +272,40 @@ class ApiClient {
       body: {'muted': muted},
     );
   }
+
+  Future<void> deleteInboxChat(String chatId) async {
+    await _request(
+      _baseUri.resolve('api/chats/$chatId/inbox'),
+      method: 'DELETE',
+    );
+  }
+
+  Future<String> uploadAttachment(File file, {String? name}) async {
+    if (await file.length() > 15 * 1024 * 1024) {
+      throw const ApiException('Choose a file smaller than 15 MB.');
+    }
+    final token = await _token;
+    if (token == null || token.isEmpty)
+      throw const ApiException('Please sign in again.');
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(file.path, filename: name),
+    });
+    final response = await _sendRequest(
+      () => _dio.postUri<dynamic>(
+        _baseUri.resolve('api/files'),
+        data: form,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          contentType: 'multipart/form-data',
+        ),
+      ),
+    );
+    final result = _decodeResponse(response);
+    return result['media_url'] as String;
+  }
+
+  MessageModel decodeMessage(Map<String, dynamic> data) =>
+      MessageModel.fromJson(data, mediaBaseUri: _baseUri);
 
   Future<List<StatusModel>> loadStatuses() async {
     final result = await _request(_baseUri.resolve('api/statuses'));

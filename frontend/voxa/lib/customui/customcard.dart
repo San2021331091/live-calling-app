@@ -1,3 +1,4 @@
+import 'package:voxa/customui/delete_chat_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/groupchatpage.dart';
@@ -14,6 +15,10 @@ class CustomCard extends StatelessWidget {
     return Material(
       color: Colors.white,
       child: InkWell(
+        onLongPress: () async {
+          if (await deleteChatFromInbox(context, chatModel.id!))
+            onChanged?.call();
+        },
         onTap: () {
           Navigator.push<bool>(
             context,

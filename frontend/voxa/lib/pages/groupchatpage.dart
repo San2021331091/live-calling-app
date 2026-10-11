@@ -1,3 +1,5 @@
+import 'package:voxa/customui/delete_chat_dialog.dart';
+import 'package:voxa/services/attachment_actions.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' as foundation;
@@ -170,7 +172,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
       if (decoded['type'] == 'message' &&
           decoded['message'] is Map<String, dynamic>) {
-        final message = MessageModel.fromJson(
+        final message = ApiClient.instance.decodeMessage(
           decoded['message'] as Map<String, dynamic>,
         );
         if (_clearedBefore != null &&
@@ -283,6 +285,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (action == 'media') _openChatTools();
             if (action == 'mute') _toggleMute();
             if (action == 'clear') _clearHistory();
+            if (action == 'delete_inbox') _deleteInboxChat();
           },
           itemBuilder: (_) => [
             const PopupMenuItem(value: 'search', child: Text('Search')),
@@ -297,6 +300,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
               ),
             ),
             const PopupMenuItem(value: 'clear', child: Text('Clear history')),
+            const PopupMenuItem(
+              value: 'delete_inbox',
+              child: Text('Delete chat'),
+            ),
             if (widget.group.isCreator)
               PopupMenuItem(
                 value: 'edit',
@@ -871,8 +878,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 Colors.indigo,
                 () async {
                   final result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom,
-                    allowedExtensions: ['pdf', 'doc', 'docx', 'zip'],
+                    type: FileType.any,
                   );
                   if (result != null && result.files.single.path != null) {
                     await _uploadAndSend(
@@ -1123,21 +1129,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
     return InkWell(
       onTap: () {
-        if (message.mediaType == 'video') {
+        if (message.mediaType == 'video' || message.mediaType == 'audio') {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => MediaPreview(url: message.mediaUrl!),
+              builder: (_) => MediaPreview(
+                url: message.mediaUrl!,
+                isAudio: message.mediaType == 'audio',
+              ),
             ),
           );
         } else {
-          showDialog<void>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: Text(message.mediaName ?? 'Attachment'),
-              content: SelectableText(message.mediaUrl!),
-            ),
-          );
+          openAttachment(context, message.mediaUrl!);
         }
       },
       child: Row(
@@ -1161,6 +1164,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteInboxChat() async {
+    final deleted = await deleteChatFromInbox(context, widget.group.id!);
+    if (deleted && mounted) Navigator.of(context).pop(true);
   }
 
   Future<void> _uploadAndSend(File file, String type, String name) async {
@@ -1196,6 +1204,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final url = await MediaUploadService.upload(
         file,
         isVideo: type != 'image',
+        isDocument: type == 'document',
+        fileName: name,
       );
       await ApiClient.instance.sendMessage(
         channel,

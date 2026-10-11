@@ -96,6 +96,7 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 		     ORDER BY created_at DESC
 		     LIMIT 1
 		 ) latest ON true
+		 WHERE mine.hidden = false
 		 ORDER BY COALESCE(latest.created_at, c.created_at) DESC`,
 		authenticatedUserID(r),
 	)
@@ -230,6 +231,10 @@ func (a *application) handleCreateDirectChat(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusInternalServerError, "could not start chat")
 			return
 		}
+	}
+	if _, err := tx.ExecContext(r.Context(), `UPDATE chat_members SET hidden = false WHERE chat_id = $1 AND user_id = $2`, chatID, me); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reopen chat")
+		return
 	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not start chat")
@@ -547,6 +552,32 @@ func (a *application) handleClearChatHistory(w http.ResponseWriter, r *http.Requ
 		a.hub.historyCleared(chatID, authenticatedUserID(r), cleared)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"cleared_before": cleared})
+}
+
+func (a *application) handleDeleteInboxChat(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatID")
+	if !uuidPattern.MatchString(chatID) {
+		writeError(w, http.StatusBadRequest, "invalid chat ID")
+		return
+	}
+	var cutoff time.Time
+	err := a.db.QueryRowContext(r.Context(),
+		`UPDATE chat_members SET hidden = true, cleared_before = clock_timestamp()
+		 WHERE chat_id = $1 AND user_id = $2 RETURNING cleared_before`,
+		chatID, authenticatedUserID(r),
+	).Scan(&cutoff)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusForbidden, "you are not a member of this chat")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete chat from inbox")
+		return
+	}
+	if a.hub != nil {
+		a.hub.historyCleared(chatID, authenticatedUserID(r), cutoff)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"id": chatID})
 }
 
 func (a *application) handleChatPreferences(w http.ResponseWriter, r *http.Request) {
