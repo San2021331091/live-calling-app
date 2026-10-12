@@ -27,7 +27,10 @@ class MessageModel {
     this.mediaName,
   });
 
-  factory MessageModel.fromJson(Map<String, dynamic> json, {Uri? mediaBaseUri}) {
+  factory MessageModel.fromJson(
+    Map<String, dynamic> json, {
+    Uri? mediaBaseUri,
+  }) {
     final createdAt = DateTime.parse(json['created_at'] as String).toLocal();
     final hour = createdAt.hour.toString().padLeft(2, '0');
     final minute = createdAt.minute.toString().padLeft(2, '0');
@@ -38,7 +41,9 @@ class MessageModel {
       final decoded = jsonDecode(content);
       if (decoded is Map<String, dynamic> && decoded['_voxa_media'] == true) {
         mediaUrl = decoded['url'] as String?;
-        if (mediaUrl != null && mediaBaseUri != null) mediaUrl = mediaBaseUri.resolve(mediaUrl).toString();
+        if (mediaUrl != null && mediaBaseUri != null) {
+          mediaUrl = mediaBaseUri.resolve(mediaUrl).toString();
+        }
         mediaType = decoded['type'] as String?;
         mediaName = decoded['name'] as String?;
         display = decoded['caption'] as String? ?? mediaName ?? 'Attachment';

@@ -285,8 +285,9 @@ class ApiClient {
       throw const ApiException('Choose a file smaller than 15 MB.');
     }
     final token = await _token;
-    if (token == null || token.isEmpty)
+    if (token == null || token.isEmpty) {
       throw const ApiException('Please sign in again.');
+    }
     final form = FormData.fromMap({
       'file': await MultipartFile.fromFile(file.path, filename: name),
     });

@@ -1274,12 +1274,22 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   Future<void> pickDocument() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
-
-    if (result != null) {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
+      if (result == null || !mounted) return;
       final file = result.files.single;
-      final path = file.path;
-      if (path != null) await _uploadAndSend(File(path), 'document', file.name);
+      if (file.path == null) {
+        throw StateError(
+          'This file cannot be read. Download it to your device first.',
+        );
+      }
+      await _uploadAndSend(File(file.path!), 'document', file.name);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not select file: $error')),
+        );
+      }
     }
   }
 

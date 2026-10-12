@@ -93,7 +93,7 @@ The home screen opens on Chats and uses bottom navigation for Updates, Communiti
 
 Text drafts clear only after the backend broadcasts the persisted message with its client correlation ID. A timeout or disconnect keeps the draft and asks the user to check history before retrying, because a message may have reached the database before confirmation was lost. Restart the backend alongside this frontend update so the confirmation protocol is available. This confirms server persistence; delivery and read receipts are not implemented.
 
-Unsupported local-only group permission/disappearing-message settings and profile/group/community photo pickers have been removed. Names, profile bios, conversations, statuses, and calls continue to use the backend. Conversation overview reports counts from loaded history, without inferred topics. History currently loads the latest 100 messages. Background incoming-call push notifications and end-to-end encryption are not implemented. Media uploads require the configured ImgBB/Cloudinary providers, and cross-network calls may require TURN.
+Unsupported local-only group permission/disappearing-message settings and profile/group/community photo pickers have been removed. Names, profile bios, conversations, statuses, and calls continue to use the backend. Conversation overview reports counts from loaded history, without inferred topics. Chat screens load the latest 100 messages; Search and Media/Links/Docs paginate through older saved history. Background incoming-call push notifications and end-to-end encryption are not implemented. Media uploads require the configured ImgBB/Cloudinary providers, and cross-network calls may require TURN.
 
 Verification commands:
 
@@ -112,3 +112,11 @@ On the current Windows machine, Application Control blocks `flutter_tester.exe`,
 Photo and video attachments in direct/group chats and status updates open the editor before upload. Add text with the text tool, insert emoji stickers with the emoji tool, and drag either overlay to position it. Double-tap an overlay to remove it. Text size applies to the latest overlay; drawing supports color selection and undo. Photo exports include the displayed overlays, rotation, and optional square crop. Captions are sent with the attachment.
 
 Android video edits are exported as MP4 files with trim boundaries, optional audio removal, and burned-in text/emoji/drawing overlays. Unedited videos can be shared directly; edited video export currently requires Android. Video editing uses Media3 1.9.2 to match the installed video player dependency. A fresh APK installation is required for the new native exporter; hot reload alone cannot install the Android channel.
+
+## Documents and chat deletion
+
+Document selection accepts any file type. Documents up to 15 MB use authenticated multipart uploads to `POST /api/files` and persist in PostgreSQL; image/video uploads retain their existing providers. File links contain a signature scoped to that file, and Android opens them through the browser for download. Restart the backend to apply migration 009.
+
+Use **Delete chat** in a direct/group chat menu, or hold a conversation in the inbox. This hides the conversation and clears previous history for the current account; other participants keep their copies. A new message brings the conversation back. **Clear history** keeps the conversation in the inbox. Group deletion remains a separate creator-only action. Mute persists the preference for in-app inbox alerts.
+
+Database regression checks use isolated fixtures in a rolled-back transaction: `VOXA_INTEGRATION_TEST=1 go test ./...`. Android editor and rename checks run with `flutter test integration_test/chat_regression_test.dart -d emulator-5554`.

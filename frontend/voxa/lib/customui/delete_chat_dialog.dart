@@ -26,10 +26,11 @@ Future<bool> deleteChatFromInbox(BuildContext context, String chatId) async {
     await ApiClient.instance.deleteInboxChat(chatId);
     return true;
   } catch (error) {
-    if (context.mounted)
+    if (context.mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not delete chat: $error')));
+    }
     return false;
   }
 }

@@ -876,18 +876,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 Icons.insert_drive_file,
                 "Document",
                 Colors.indigo,
-                () async {
-                  final result = await FilePicker.platform.pickFiles(
-                    type: FileType.any,
-                  );
-                  if (result != null && result.files.single.path != null) {
-                    await _uploadAndSend(
-                      File(result.files.single.path!),
-                      'document',
-                      result.files.single.name,
-                    );
-                  }
-                },
+                pickDocument,
               ),
               _attachmentItem(
                 Icons.camera_alt,
@@ -1164,6 +1153,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ],
       ),
     );
+  }
+
+  Future<void> pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
+      if (result == null || !mounted) return;
+      final file = result.files.single;
+      if (file.path == null) {
+        throw StateError(
+          'This file cannot be read. Download it to your device first.',
+        );
+      }
+      await _uploadAndSend(File(file.path!), 'document', file.name);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not select file: $error')),
+        );
+      }
+    }
   }
 
   Future<void> _deleteInboxChat() async {

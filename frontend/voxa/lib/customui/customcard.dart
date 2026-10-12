@@ -16,8 +16,9 @@ class CustomCard extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         onLongPress: () async {
-          if (await deleteChatFromInbox(context, chatModel.id!))
+          if (await deleteChatFromInbox(context, chatModel.id!)) {
             onChanged?.call();
+          }
         },
         onTap: () {
           Navigator.push<bool>(

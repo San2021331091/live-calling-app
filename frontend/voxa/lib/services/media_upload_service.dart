@@ -20,8 +20,9 @@ class MediaUploadService {
     bool isDocument = false,
     String? fileName,
   }) async {
-    if (isDocument)
+    if (isDocument) {
       return ApiClient.instance.uploadAttachment(file, name: fileName);
+    }
     if (isVideo) return _uploadCloudinary(file);
     return _uploadImgbb(file);
   }
@@ -38,8 +39,9 @@ class MediaUploadService {
     );
     final url =
         (response.data as Map<String, dynamic>)['data']?['url'] as String?;
-    if (url == null || url.isEmpty)
+    if (url == null || url.isEmpty) {
       throw Exception('ImgBB did not return an image URL');
+    }
     return url;
   }
 
@@ -64,8 +66,9 @@ class MediaUploadService {
     );
     final url =
         (response.data as Map<String, dynamic>)['secure_url'] as String?;
-    if (url == null || url.isEmpty)
+    if (url == null || url.isEmpty) {
       throw Exception('Cloudinary did not return a file URL');
+    }
     return url;
   }
 }

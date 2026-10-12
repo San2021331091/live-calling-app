@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/fasthttp/websocket"
 	"github.com/joho/godotenv"
+	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -108,7 +113,7 @@ func TestChatHistoryIntegration(t *testing.T) {
 	if err = db.QueryRow(`SELECT muted FROM chat_members WHERE chat_id=$1 AND user_id=$2`, chatID, ids[0]).Scan(&muted); err != nil || !muted {
 		t.Fatal("mute not persisted")
 	}
-	if _, err = db.Exec(`INSERT INTO messages(chat_id,sender_id,content,created_at) VALUES($1,$2,'After clearing',clock_timestamp()+interval '1 second')`, chatID, ids[1]); err != nil {
+	if _, err = db.Exec(`INSERT INTO messages(chat_id,sender_id,content,created_at) VALUES($1,$2,'After clearing',clock_timestamp())`, chatID, ids[1]); err != nil {
 		t.Fatal(err)
 	}
 	if len(history(ids[0], "")) != 1 {
@@ -127,6 +132,114 @@ func TestChatHistoryIntegration(t *testing.T) {
 	if len(listing.Chats) != 1 || listing.Chats[0].Name != "Renamed group" || !listing.Chats[0].Muted || listing.Chats[0].CurrentMessage != "After clearing" {
 		t.Fatal("chat summary or preferences are stale")
 	}
+
+	if request(app.handleDeleteInboxChat, "DELETE", "/", ids[2], "").Code != 403 {
+		t.Fatal("non-member deleted chat")
+	}
+	if request(app.handleDeleteInboxChat, "DELETE", "/", ids[0], "").Code != 200 {
+		t.Fatal("inbox delete failed")
+	}
+	w = request(app.handleListChats, "GET", "/", ids[0], "")
+	if err = json.Unmarshal(w.Body.Bytes(), &listing); err != nil || len(listing.Chats) != 0 {
+		t.Fatal("deleted chat remains in inbox")
+	}
+	w = request(app.handleListChats, "GET", "/", ids[1], "")
+	if err = json.Unmarshal(w.Body.Bytes(), &listing); err != nil || len(listing.Chats) != 1 {
+		t.Fatal("delete removed peer's chat")
+	}
+	if len(history(ids[0], "")) != 0 {
+		t.Fatal("delete retained old history")
+	}
+	app.jwtSecret = []byte("private-regression-test-secret")
+	routes := app.routes()
+	token, err := app.createToken(ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, filename := range []string{"report.pdf", "notes.txt", "archive.zip"} {
+		prefix := "%PDF-1.7\n"
+		if filename == "notes.txt" {
+			prefix = "Document regression text\n"
+		}
+		if filename == "archive.zip" {
+			prefix = "PK\x03\x04"
+		}
+		payload := append([]byte(prefix), bytes.Repeat([]byte("x"), 2<<20)...)
+		var body bytes.Buffer
+		form := multipart.NewWriter(&body)
+		part, err := form.CreateFormFile("file", filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		part.Write(payload)
+		form.Close()
+		r := httptest.NewRequest("POST", "/api/files", &body)
+		r.Header.Set("Content-Type", form.FormDataContentType())
+		r = r.WithContext(context.WithValue(r.Context(), userIDContextKey, ids[0]))
+		r.Header.Set("Authorization", "Bearer "+token)
+		response, err := routes.Test(r, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		uploaded := httptest.NewRecorder()
+		uploaded.Code = response.StatusCode
+		uploaded.Body.ReadFrom(response.Body)
+		response.Body.Close()
+		if uploaded.Code != 201 {
+			t.Fatalf("upload failed: %s", uploaded.Body.String())
+		}
+		var result struct {
+			URL string `json:"media_url"`
+		}
+		if err := json.Unmarshal(uploaded.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		link, err := url.Parse(result.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		get := httptest.NewRequest("GET", result.URL, nil)
+		get.SetPathValue("fileID", strings.TrimPrefix(link.Path, "/api/files/"))
+		downloaded := httptest.NewRecorder()
+		app.handleDownloadFile(downloaded, get)
+		if downloaded.Code != 200 || !bytes.Equal(downloaded.Body.Bytes(), payload) {
+			t.Fatal("file roundtrip lost bytes")
+		}
+		get.URL.RawQuery = "key=invalid"
+		denied := httptest.NewRecorder()
+		app.handleDownloadFile(denied, get)
+		if denied.Code != 403 {
+			t.Fatal("invalid file key accepted")
+		}
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = routes.Listener(listener) }()
+	defer routes.Shutdown()
+	headers := http.Header{"Authorization": {"Bearer " + token}}
+	connection, _, err := websocket.DefaultDialer.Dial("ws://"+listener.Addr().String()+"/ws/"+chatID, headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	if err = connection.WriteJSON(map[string]string{"type": "message", "content": "After inbox deletion", "client_id": "regression-resurface"}); err != nil {
+		t.Fatal(err)
+	}
+	connection.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var event map[string]any
+	if err = connection.ReadJSON(&event); err != nil {
+		t.Fatal(err)
+	}
+	if event["type"] != "message" {
+		t.Fatalf("message was not saved: %v", event)
+	}
+	var hidden bool
+	if err = db.QueryRow(`SELECT hidden FROM chat_members WHERE chat_id=$1 AND user_id=$2`, chatID, ids[0]).Scan(&hidden); err != nil || hidden {
+		t.Fatal("new message did not restore inbox chat")
+	}
+	connection.Close()
 	hub := newMessageHub()
 	own := &wsClient{chatID: chatID, userID: ids[0], send: make(chan []byte, 1)}
 	peer := &wsClient{chatID: chatID, userID: ids[1], send: make(chan []byte, 1)}

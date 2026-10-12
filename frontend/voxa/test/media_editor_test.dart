@@ -85,8 +85,9 @@ void main() {
       if (pixels.getUint8(offset) != ((Colors.blue.toARGB32() >> 16) & 255) ||
           pixels.getUint8(offset + 1) !=
               ((Colors.blue.toARGB32() >> 8) & 255) ||
-          pixels.getUint8(offset + 2) != (Colors.blue.toARGB32() & 255))
+          pixels.getUint8(offset + 2) != (Colors.blue.toARGB32() & 255)) {
         changedPixels++;
+      }
     }
     expect(changedPixels, greaterThan(10));
     frame.image.dispose();
