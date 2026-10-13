@@ -78,8 +78,8 @@ func TestPushPayload(t *testing.T) {
 			t.Fatal("APNs alert configuration missing")
 		}
 		if call != "" && (msg.Data["type"] != "incoming_call" ||
-			msg.Android.Notification.ChannelID != "voxa_calls_ringtone" ||
-			msg.Android.Notification.Sound != "call_ring") {
+			msg.Android.Notification.ChannelID != "voxa_calls_default" ||
+			msg.Android.Notification.Sound != "default") {
 			t.Fatal("call uses wrong channel")
 		}
 	}

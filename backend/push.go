@@ -189,7 +189,7 @@ func (a *application) loadPush(ctx context.Context, id int64) (*messaging.Messag
 func buildPush(token, user, chat, call, message, event string, expires time.Time) *messaging.Message {
 	kind, channel, tag, body, sound := "chat_message", "voxa_messages", "chat_"+chat, "You have a new message", "default"
 	if call != "" {
-		kind, channel, tag, body, sound = "incoming_call", "voxa_calls_ringtone", "call_"+call, "You have an incoming call. Tap to answer.", "call_ring"
+		kind, channel, tag, body, sound = "incoming_call", "voxa_calls_default", "call_"+call, "You have an incoming call. Tap to answer.", "default"
 	}
 	ttl := time.Until(expires)
 	if ttl < 0 {

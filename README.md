@@ -85,9 +85,10 @@ The debug Android manifest permits local cleartext HTTP for development. Configu
 Direct audio and video calls use Flutter WebRTC. The backend creates call records, delivers SDP/ICE signals to the other participant, and polls for incoming calls while the app is open. Apply the database migrations by restarting the backend. Group calls are not supported; they require a media-server/SFU architecture.
 
 Call history and status transitions remain durable in PostgreSQL's `calls` table.
-Incoming-call prompts loop the bundled `assets/call_ring.mp3` until the call is
-accepted or declined. Android push notifications use the same ringtone through
-the `voxa_calls_ringtone` notification channel.
+On Android, outgoing calls play the bundled `assets/call_ring.mp3` as ringback
+until the other side answers or the call ends. Incoming calls use the device's
+default ringtone in the foreground and the Android `voxa_calls_default`
+notification channel in the background. iOS ringtone behavior is unchanged.
 Redis caches call records for 5 seconds and incoming-call lists (including empty
 lists) for 2 seconds. Creation, answer, and hangup invalidate those caches. Cache
 misses read PostgreSQL; generation checks prevent an in-flight database read from

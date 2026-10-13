@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:voxa/model/call_model.dart';
+import 'package:voxa/services/incoming_call_ringtone.dart';
 import 'package:voxa/services/webrtc_call_session.dart';
 
 class WebRtcCallScreen extends StatefulWidget {
@@ -45,7 +48,46 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeCall();
+    if (widget.isIncoming) {
+      _initializeCall();
+    } else {
+      _startOutgoingCall();
+    }
+  }
+
+  Future<void> _startOutgoingCall() async {
+    try {
+      await CallRingtone.instance.startOutgoing();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'outgoing call ringtone',
+          context: ErrorDescription('while starting the outgoing call sound'),
+        ),
+      );
+    }
+    if (!mounted) {
+      await _stopOutgoingRingtone();
+      return;
+    }
+    await _initializeCall();
+  }
+
+  Future<void> _stopOutgoingRingtone() async {
+    try {
+      await CallRingtone.instance.stopOutgoing();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'outgoing call ringtone',
+          context: ErrorDescription('while stopping the outgoing call sound'),
+        ),
+      );
+    }
   }
 
   Future<void> _initializeCall() async {
@@ -71,8 +113,14 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
             isIncoming: false,
             externalLocalStream: stream,
             onStatusChanged: (status) {
+              if (status == 'Connecting...' || status == 'Connected') {
+                unawaited(_stopOutgoingRingtone());
+              }
               if (mounted) {
-                setState(() => _status = 'Connected to ${_groupSessions.length} participants');
+                setState(
+                  () => _status =
+                      'Connected to ${_groupSessions.length} participants',
+                );
               }
             },
             onRemoteStream: (remoteStream) {
@@ -83,6 +131,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
               setState(() {});
             },
             onError: (error) {
+              unawaited(_stopOutgoingRingtone());
               if (mounted) setState(() => _error = error);
             },
           );
@@ -99,6 +148,11 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
         media: widget.media,
         isIncoming: widget.isIncoming,
         onStatusChanged: (status) {
+          if (!widget.isIncoming &&
+              status != 'Calling...' &&
+              status != 'Ringing...') {
+            unawaited(_stopOutgoingRingtone());
+          }
           if (mounted) setState(() => _status = status);
         },
         onRemoteStream: (stream) {
@@ -106,6 +160,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
           if (mounted) setState(() {});
         },
         onError: (error) {
+          unawaited(_stopOutgoingRingtone());
           if (mounted) setState(() => _error = error);
         },
       );
@@ -116,6 +171,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
       _localRenderer.srcObject = session.localStream;
       if (mounted) setState(() {});
     } catch (error) {
+      await _stopOutgoingRingtone();
       var statusError = '';
       try {
         await _session?.close(notifyPeer: true);
@@ -140,6 +196,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
 
   @override
   void dispose() {
+    unawaited(_stopOutgoingRingtone());
     _session?.close();
     for (final session in _groupSessions.values) {
       session.close();
@@ -161,6 +218,7 @@ class _WebRtcCallScreenState extends State<WebRtcCallScreen> {
     setState(() => _ending = true);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    await _stopOutgoingRingtone();
     try {
       await _session?.close(notifyPeer: true);
       for (final session in _groupSessions.values) {

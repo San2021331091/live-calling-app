@@ -258,11 +258,11 @@ class HomeScreenState extends State<HomeScreen>
   Future<void> _promptForCall(CallModel call) async {
     _showingIncomingDialog = true;
     final navigator = Navigator.of(context);
-    final ringtone = IncomingCallRingtone.instance;
+    final ringtone = CallRingtone.instance;
     bool? accept;
     try {
       try {
-        await ringtone.start();
+        await ringtone.startIncoming();
       } catch (error, stackTrace) {
         FlutterError.reportError(
           FlutterErrorDetails(
@@ -295,7 +295,7 @@ class HomeScreenState extends State<HomeScreen>
     } finally {
       _showingIncomingDialog = false;
       try {
-        await ringtone.stop();
+        await ringtone.stopIncoming();
       } catch (error, stackTrace) {
         FlutterError.reportError(
           FlutterErrorDetails(

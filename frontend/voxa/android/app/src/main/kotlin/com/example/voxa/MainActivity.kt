@@ -30,9 +30,9 @@ class MainActivity : FlutterActivity() {
             notifications.createNotificationChannel(NotificationChannel(
                 "voxa_messages", "Messages", NotificationManager.IMPORTANCE_HIGH))
             val callChannel = NotificationChannel(
-                "voxa_calls_ringtone", "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
+                "voxa_calls_default", "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
             callChannel.setSound(
-                Uri.parse("android.resource://$packageName/${R.raw.call_ring}"),
+                Settings.System.DEFAULT_RINGTONE_URI,
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
