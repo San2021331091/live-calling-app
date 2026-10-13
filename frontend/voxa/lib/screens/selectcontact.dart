@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
@@ -249,10 +250,7 @@ class _SelectContactState extends State<SelectContact> {
 
   Widget _userTile(UserModel user) {
     return ListTile(
-      leading: const CircleAvatar(
-        backgroundColor: Color(0xFFE8F3ED),
-        child: Icon(Icons.person, color: Color(0xFF168A62)),
-      ),
+      leading: AvatarPhoto(url: user.avatarUrl),
       title: Text(user.name),
       subtitle: Text(user.phone),
       onTap: () => _openChat(user),

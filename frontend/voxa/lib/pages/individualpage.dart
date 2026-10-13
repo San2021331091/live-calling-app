@@ -1,3 +1,5 @@
+import 'package:voxa/customui/avatar_photo.dart';
+import 'package:voxa/customui/chat_theme_picker.dart';
 import 'package:voxa/customui/delete_chat_dialog.dart';
 import 'package:voxa/services/attachment_actions.dart';
 import 'dart:async';
@@ -52,6 +54,8 @@ class _IndividualPageState extends State<IndividualPage> {
   bool _chatConnected = false;
   bool _sendingText = false;
   late bool _muted;
+  late String _avatarUrl, _theme, _personalTheme, _sharedTheme;
+  ChatPalette get _palette => ChatPalette.fromId(_theme);
   DateTime? _clearedBefore;
   bool _clearing = false;
   bool _isRecordingVoice = false;
@@ -60,6 +64,10 @@ class _IndividualPageState extends State<IndividualPage> {
   void initState() {
     super.initState();
     _muted = widget.chatModel.muted;
+    _avatarUrl = widget.chatModel.img;
+    _theme = widget.chatModel.theme;
+    _personalTheme = widget.chatModel.personalTheme;
+    _sharedTheme = widget.chatModel.sharedTheme;
 
     _messageController.addListener(_handleMessageChanged);
     _initializeChat();
@@ -85,6 +93,39 @@ class _IndividualPageState extends State<IndividualPage> {
     if (mounted) {
       setState(() => isTyping = _messageController.text.trim().isNotEmpty);
     }
+  }
+
+  Future<void> _refreshAppearance() async {
+    final id = widget.chatModel.id;
+    if (id == null) return;
+    try {
+      final appearance = await ApiClient.instance.loadChatAppearance(id);
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = appearance['avatar_url'] as String? ?? '';
+        _theme = appearance['theme'] as String? ?? 'classic';
+        _personalTheme = appearance['personal_theme'] as String? ?? '';
+        _sharedTheme = appearance['shared_theme'] as String? ?? 'classic';
+      });
+    } catch (_) {
+      /* Existing appearance remains usable; retry on reconnect. */
+    }
+  }
+
+  Future<void> _chooseTheme() async {
+    final id = widget.chatModel.id;
+    if (id == null) return;
+    await _refreshAppearance();
+    if (!mounted) return;
+    final saved = await showChatThemePicker(
+      context,
+      chatId: id,
+      personalTheme: _personalTheme,
+      sharedTheme: _sharedTheme,
+      isGroup: false,
+      canManageShared: false,
+    );
+    if (saved == true) await _refreshAppearance();
   }
 
   Future<void> _initializeChat() async {
@@ -124,6 +165,7 @@ class _IndividualPageState extends State<IndividualPage> {
         },
       );
       _chatConnected = true;
+      await _refreshAppearance();
       final history = await ApiClient.instance.loadMessages(chatId);
       if (!mounted) return;
       setState(() {
@@ -172,6 +214,10 @@ class _IndividualPageState extends State<IndividualPage> {
     try {
       final decoded = jsonDecode(event as String) as Map<String, dynamic>;
       ApiClient.instance.handleChatEvent(_channel, decoded);
+      if (decoded['type'] == 'appearance_changed') {
+        unawaited(_refreshAppearance());
+        return;
+      }
       if (decoded['type'] == 'history_cleared') {
         final cutoff = DateTime.parse(decoded['cleared_before'] as String);
         if (mounted) {
@@ -490,14 +536,14 @@ class _IndividualPageState extends State<IndividualPage> {
           children: [
             // HEADER
             ColoredBox(
-              color: const Color(0xFF0C544B),
+              color: _palette.header,
               child: SafeArea(
                 bottom: false,
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Color(0xFF0C544B), Color(0xFF113E39)],
+                      colors: [_palette.header, _palette.header],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -518,17 +564,7 @@ class _IndividualPageState extends State<IndividualPage> {
                         color: Colors.white,
                       ),
                       const SizedBox(width: 4),
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: const Color(0xFFE8F3ED),
-                        child: Icon(
-                          widget.chatModel.isGroup == true
-                              ? Icons.groups_2_rounded
-                              : Icons.person_rounded,
-                          color: const Color(0xFF168A62),
-                          size: 24,
-                        ),
-                      ),
+                      AvatarPhoto(url: _avatarUrl, radius: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -622,6 +658,9 @@ class _IndividualPageState extends State<IndividualPage> {
                             ),
                             onSelected: (value) {
                               switch (value) {
+                                case 'Chat theme':
+                                  _chooseTheme();
+                                  break;
                                 case "View Contact":
                                   Navigator.push(
                                     context,
@@ -631,7 +670,9 @@ class _IndividualPageState extends State<IndividualPage> {
                                         status: '',
                                         lastSeen: '',
                                         phone: widget.chatModel.peerPhone ?? '',
-                                        imageUrl: null,
+                                        imageUrl: _avatarUrl.isEmpty
+                                            ? null
+                                            : _avatarUrl,
                                       ),
                                     ),
                                   );
@@ -659,6 +700,10 @@ class _IndividualPageState extends State<IndividualPage> {
                             },
                             itemBuilder: (BuildContext context) {
                               return [
+                                const PopupMenuItem(
+                                  value: 'Chat theme',
+                                  child: Text('Chat theme'),
+                                ),
                                 const PopupMenuItem(
                                   value: "View Contact",
                                   child: Text(
@@ -717,9 +762,9 @@ class _IndividualPageState extends State<IndividualPage> {
             ),
             Expanded(
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFFF7FBF9), Color(0xFFEAF3F0)],
+                    colors: [_palette.background, _palette.background],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -764,7 +809,7 @@ class _IndividualPageState extends State<IndividualPage> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: message.isMe
-                                          ? const Color(0xFFDAF3E5)
+                                          ? _palette.bubble
                                           : Colors.white,
                                       borderRadius: BorderRadius.only(
                                         topLeft: const Radius.circular(18),

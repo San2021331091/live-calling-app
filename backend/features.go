@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha1"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -121,6 +123,10 @@ func (a *application) handleCallHistory(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *application) handleCreateCall(w http.ResponseWriter, r *http.Request) {
+	if err := a.callRedis.ping(r.Context()); err != nil {
+		writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
+		return
+	}
 	var request struct {
 		PeerID string `json:"peer_id"`
 		Kind   string `json:"kind"`
@@ -176,10 +182,15 @@ func (a *application) handleCreateCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	call.PeerID = peerID
+	a.invalidateCall(r.Context(), call)
 	writeJSON(w, http.StatusCreated, call)
 }
 
 func (a *application) handleCreateGroupCall(w http.ResponseWriter, r *http.Request) {
+	if err := a.callRedis.ping(r.Context()); err != nil {
+		writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
+		return
+	}
 	chatID := r.PathValue("chatID")
 	if !uuidPattern.MatchString(chatID) {
 		writeError(w, http.StatusBadRequest, "invalid chat ID")
@@ -265,15 +276,16 @@ func (a *application) handleCreateGroupCall(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		call.PeerID = memberID
+		a.invalidateCall(r.Context(), call)
 		calls = append(calls, call)
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"chat_id":        chatID,
-		"kind":           callKind,
-		"status":         status,
+		"chat_id":         chatID,
+		"kind":            callKind,
+		"status":          status,
 		"primary_peer_id": calls[0].PeerID,
 		"primary_call_id": calls[0].ID,
-		"calls":          calls,
+		"calls":           calls,
 	})
 }
 
@@ -297,19 +309,26 @@ func (a *application) handleCallSignal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "signal type must be offer, answer, or ice")
 		return
 	}
-	var peerID string
-	err := a.db.QueryRowContext(r.Context(),
-		`SELECT CASE WHEN caller_id = $2 THEN callee_id ELSE caller_id END::text
-		 FROM calls WHERE id = $1 AND (caller_id = $2 OR callee_id = $2)
-		              AND status IN ('started', 'active')`,
-		callID, authenticatedUserID(r),
-	).Scan(&peerID)
+	call, err := a.loadCall(r.Context(), callID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusForbidden, "call is unavailable or you are not a participant")
 			return
 		}
+		if errors.Is(err, errCallRedis) {
+			writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "could not validate call signal")
+		return
+	}
+	peerID, participant := call.peer(authenticatedUserID(r))
+	if !participant || (call.Status != "started" && call.Status != "active") {
+		writeError(w, http.StatusForbidden, "call is unavailable or you are not a participant")
+		return
+	}
+	if (request.Type == "answer" && authenticatedUserID(r) != call.CalleeID) || (request.Type == "offer" && authenticatedUserID(r) != call.CallerID) {
+		writeError(w, http.StatusForbidden, "signal type is not allowed for this participant")
 		return
 	}
 	if request.TargetID != "" && request.TargetID != peerID {
@@ -322,32 +341,51 @@ func (a *application) handleCallSignal(w http.ResponseWriter, r *http.Request) {
 	} else {
 		payload = request.Payload
 	}
-	var sequence int64
-	err = a.db.QueryRowContext(r.Context(),
-		`INSERT INTO call_signals (call_id, sender_id, target_id, signal_type, payload)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING sequence`,
-		callID, authenticatedUserID(r), peerID, request.Type, payload,
-	).Scan(&sequence)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not record call signal")
-		return
-	}
 	if request.Type == "answer" {
-		if _, err := a.db.ExecContext(r.Context(),
+		if err := a.db.QueryRowContext(r.Context(),
 			`UPDATE calls SET status = 'active'
-			 WHERE id = $1 AND status = 'started'`,
+			 WHERE id = $1 AND (status = 'active' OR (status = 'started' AND started_at > now() - interval '2 minutes'))
+			 RETURNING status`,
 			callID,
-		); err != nil {
+		).Scan(&call.Status); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusConflict, "call has already ended")
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "could not mark call as active")
 			return
 		}
+		a.invalidateCall(r.Context(), call)
+	}
+	sequence, err := a.callRedis.appendSignal(r.Context(), callID, peerID, callSignal{SenderID: authenticatedUserID(r), Type: request.Type, Payload: payload})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "could not store call signal in Redis")
+		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"sequence": sequence, "type": request.Type, "call_id": callID})
 }
 
 func (a *application) handleIncomingCalls(w http.ResponseWriter, r *http.Request) {
-	if _, err := a.db.ExecContext(r.Context(),
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	calls := make([]callRecord, 0, 2)
+	key := incomingKey(authenticatedUserID(r))
+	hit, generation, err := a.callRedis.cached(ctx, key, &calls)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
+		return
+	}
+	if hit {
+		current := make([]callRecord, 0, len(calls))
+		for _, call := range calls {
+			if time.Since(call.StartedAt) < 2*time.Minute {
+				current = append(current, call)
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"calls": current})
+		return
+	}
+	if _, err := a.db.ExecContext(ctx,
 		`UPDATE calls SET status = 'missed', ended_at = now()
 		 WHERE callee_id = $1 AND status = 'started'
 		       AND started_at <= now() - interval '2 minutes'`,
@@ -356,7 +394,7 @@ func (a *application) handleIncomingCalls(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "could not expire unanswered calls")
 		return
 	}
-	rows, err := a.db.QueryContext(r.Context(),
+	rows, err := a.db.QueryContext(ctx,
 		`SELECT c.id::text, c.caller_id::text, c.callee_id::text, c.kind, c.status,
 		        c.started_at, u.id::text, u.display_name
 		 FROM calls c JOIN users u ON u.id = c.caller_id
@@ -372,7 +410,6 @@ func (a *application) handleIncomingCalls(w http.ResponseWriter, r *http.Request
 	}
 	defer rows.Close()
 
-	calls := make([]callRecord, 0, 2)
 	for rows.Next() {
 		var call callRecord
 		if err := rows.Scan(
@@ -386,6 +423,10 @@ func (a *application) handleIncomingCalls(w http.ResponseWriter, r *http.Request
 	}
 	if err := rows.Err(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read incoming calls")
+		return
+	}
+	if err := a.callRedis.remember(ctx, key, generation, calls, incomingCacheTTL); err != nil {
+		writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"calls": calls})
@@ -442,56 +483,32 @@ func (a *application) handleCallSignals(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "after must be a non-negative signal sequence")
 		return
 	}
-	var callStatus string
-	err = a.db.QueryRowContext(r.Context(),
-		`SELECT status FROM calls
-		 WHERE id = $1 AND (caller_id = $2 OR callee_id = $2)`,
-		callID, authenticatedUserID(r),
-	).Scan(&callStatus)
+	call, err := a.loadCall(r.Context(), callID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusForbidden, "you are not part of this call")
+			return
+		}
+		if errors.Is(err, errCallRedis) {
+			writeError(w, http.StatusServiceUnavailable, errCallRedis.Error())
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "could not validate call")
 		return
 	}
-	rows, err := a.db.QueryContext(r.Context(),
-		`SELECT s.sequence, s.sender_id::text, s.signal_type, s.payload
-		 FROM call_signals s
-		 JOIN calls c ON c.id = s.call_id
-		 WHERE s.call_id = $1 AND s.sequence > $2
-		       AND (c.caller_id = $3 OR c.callee_id = $3)
-		       AND (s.target_id IS NULL OR s.target_id = $3)
-		       AND s.sender_id <> $3
-		 ORDER BY s.sequence ASC
-		 LIMIT 100`,
-		callID, after, authenticatedUserID(r),
-	)
+	if _, participant := call.peer(authenticatedUserID(r)); !participant {
+		writeError(w, http.StatusForbidden, "you are not part of this call")
+		return
+	}
+	signals := make([]callSignal, 0)
+	if call.Status == "started" || call.Status == "active" {
+		signals, err = a.callRedis.signals(r.Context(), callID, authenticatedUserID(r), after)
+	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not load call signals")
+		writeError(w, http.StatusServiceUnavailable, "could not load call signals from Redis")
 		return
 	}
-	defer rows.Close()
-
-	signals := make([]map[string]any, 0, 8)
-	for rows.Next() {
-		var sequence int64
-		var senderID, signalType string
-		var payload json.RawMessage
-		if err := rows.Scan(&sequence, &senderID, &signalType, &payload); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not read call signals")
-			return
-		}
-		signals = append(signals, map[string]any{
-			"sequence": sequence, "sender_id": senderID, "type": signalType, "payload": payload,
-		})
-	}
-	if err := rows.Err(); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not read call signals")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": callStatus, "signals": signals})
+	writeJSON(w, http.StatusOK, map[string]any{"status": call.Status, "signals": signals})
 }
 
 func (a *application) handleEndCall(w http.ResponseWriter, r *http.Request) {
@@ -512,14 +529,14 @@ func (a *application) handleEndCall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "call status must be ended or missed")
 		return
 	}
-	var updatedStatus string
+	var call callRecord
 	err := a.db.QueryRowContext(r.Context(),
 		`UPDATE calls SET status = $3, ended_at = now()
-		 WHERE id = $1 AND (caller_id = $2 OR callee_id = $2) AND status = 'started'
-		       AND ($3 <> 'missed' OR callee_id = $2)
-		 RETURNING status`,
+		 WHERE id = $1 AND (caller_id = $2 OR callee_id = $2) AND status IN ('started', 'active')
+		       AND ($3 <> 'missed' OR (callee_id = $2 AND status = 'started'))
+		 RETURNING id::text, caller_id::text, callee_id::text, status`,
 		callID, authenticatedUserID(r), status,
-	).Scan(&updatedStatus)
+	).Scan(&call.ID, &call.CallerID, &call.CalleeID, &call.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			writeError(w, http.StatusConflict, "call has already ended or cannot be declined")
@@ -528,5 +545,9 @@ func (a *application) handleEndCall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not end call")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": updatedStatus})
+	a.invalidateCall(r.Context(), call)
+	if err := a.callRedis.clearSignals(r.Context(), call); err != nil {
+		log.Print("call signal cleanup failed; Redis signals will expire automatically")
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": call.Status})
 }

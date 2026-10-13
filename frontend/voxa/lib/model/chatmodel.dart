@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 class ChatModel {
+  final String theme;
+  final String personalTheme;
+  final String sharedTheme;
   final bool muted;
   final DateTime? lastMessageAt;
   final String lastSenderId;
@@ -17,6 +20,9 @@ class ChatModel {
   final String? time;
 
   const ChatModel({
+    this.theme = 'classic',
+    this.personalTheme = '',
+    this.sharedTheme = 'classic',
     this.muted = false,
     this.lastMessageAt,
     this.lastSenderId = '',
@@ -43,7 +49,10 @@ class ChatModel {
           : DateTime.parse(lastMessageAt),
       lastSenderId: json['last_sender_id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      img: '',
+      img: json['avatar_url'] as String? ?? '',
+      theme: json['theme'] as String? ?? 'classic',
+      personalTheme: json['personal_theme'] as String? ?? '',
+      sharedTheme: json['shared_theme'] as String? ?? 'classic',
       peerId: json['peer_id'] as String?,
       peerPhone: json['peer_phone'] as String?,
       isGroup: json['is_group'] as bool? ?? false,

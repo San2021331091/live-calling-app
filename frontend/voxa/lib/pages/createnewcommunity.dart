@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
@@ -19,6 +20,8 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
   List<UserModel> _users = [];
   bool _isLoading = true;
   bool _isCreating = false;
+  bool _photoBusy = false;
+  String _avatarUrl = '';
   String? _loadError;
 
   @override
@@ -64,6 +67,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
     try {
       final community = await ApiClient.instance.createCommunity(
         name: name,
+        avatarUrl: _avatarUrl,
         type: widget.communityType,
         members: selectedGroups.toList(),
       );
@@ -113,14 +117,17 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
             ),
             const SizedBox(height: 30),
 
-            const CircleAvatar(
+            AvatarPhotoEditor(
+              url: _avatarUrl,
               radius: 48,
-              backgroundColor: Color(0xFFDCE9E1),
-              child: Icon(
-                Icons.groups_rounded,
-                size: 40,
-                color: Color(0xFF168A62),
-              ),
+              icon: Icons.groups_rounded,
+              enabled: !_isCreating,
+              onBusyChanged: (busy) {
+                if (mounted) setState(() => _photoBusy = busy);
+              },
+              onSave: (url) async {
+                if (mounted) setState(() => _avatarUrl = url);
+              },
             ),
             const SizedBox(height: 20),
 
@@ -184,13 +191,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
                                 user.id,
                               );
                               return ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFE8F3ED),
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Color(0xFF168A62),
-                                  ),
-                                ),
+                                leading: AvatarPhoto(url: user.avatarUrl),
                                 title: Text(user.name),
                                 subtitle: Text(user.phone),
                                 trailing: Checkbox(
@@ -226,7 +227,7 @@ class _AddCommunityInfoState extends State<AddCommunityInfo> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isCreating ? null : _createCommunity,
+                onPressed: _isCreating || _photoBusy ? null : _createCommunity,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF168A62),
                   padding: const EdgeInsets.symmetric(vertical: 14),

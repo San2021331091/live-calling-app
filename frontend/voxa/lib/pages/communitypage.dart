@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/groupchatpage.dart';
@@ -108,7 +109,11 @@ class _CommunityPageState extends State<CommunityPage> {
                 const CircleAvatar(
                   radius: 26,
                   backgroundColor: Colors.white24,
-                  child: Icon(Icons.groups_2_rounded, color: Colors.white, size: 28),
+                  child: Icon(
+                    Icons.groups_2_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -126,10 +131,7 @@ class _CommunityPageState extends State<CommunityPage> {
                       SizedBox(height: 4),
                       Text(
                         "Bring members together in one space",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -205,19 +207,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 ),
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF16A26E), Color(0xFF0E4D45)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.all(Radius.circular(14)),
-                    ),
-                    child: const Icon(Icons.groups, color: Colors.white),
-                  ),
+                  leading: AvatarPhoto(url: community.img, icon: Icons.groups),
                   title: Text(
                     community.name.isEmpty ? 'Community' : community.name,
                     style: const TextStyle(
@@ -227,9 +217,15 @@ class _CommunityPageState extends State<CommunityPage> {
                   ),
                   subtitle: Text(
                     community.about ?? 'Community chat',
-                    style: const TextStyle(color: Color(0xFF75827B), fontSize: 11),
+                    style: const TextStyle(
+                      color: Color(0xFF75827B),
+                      fontSize: 11,
+                    ),
                   ),
-                  trailing: const Icon(Icons.chevron_right, color: Color(0xFF168A62)),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Color(0xFF168A62),
+                  ),
                   onTap: () => _openCommunity(community),
                 ),
               ),
@@ -239,4 +235,3 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 }
-

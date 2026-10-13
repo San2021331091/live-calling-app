@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/user_model.dart';
@@ -145,14 +146,15 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
               decoration: const BoxDecoration(color: Colors.white),
               child: Column(
                 children: [
-                  const CircleAvatar(
+                  AvatarPhotoEditor(
+                    url: _profile!.avatarUrl,
                     radius: 55,
-                    backgroundColor: Color(0xFFE8F3ED),
-                    child: Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Color(0xFF168A62),
-                    ),
+                    onSave: (url) async {
+                      final profile = await ApiClient.instance.updateProfile(
+                        avatarUrl: url,
+                      );
+                      if (mounted) setState(() => _profile = profile);
+                    },
                   ),
                   const SizedBox(height: 10),
                   Text(

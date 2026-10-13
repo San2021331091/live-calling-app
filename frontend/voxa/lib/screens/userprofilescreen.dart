@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/call_model.dart';
@@ -43,16 +44,7 @@ class UserProfileScreen extends StatelessWidget {
             decoration: const BoxDecoration(color: Colors.white),
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: const Color(0xFFE8F3ED),
-                  backgroundImage: imageUrl != null
-                      ? NetworkImage(imageUrl!)
-                      : null,
-                  child: imageUrl == null
-                      ? const Icon(Icons.person, size: 50, color: Color(0xFF168A62))
-                      : null,
-                ),
+                AvatarPhoto(url: imageUrl ?? '', radius: 50),
                 const SizedBox(height: 12),
                 Text(
                   name,
@@ -65,13 +57,19 @@ class UserProfileScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   status,
-                  style: const TextStyle(color: Color(0xFF536159), fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xFF536159),
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   lastSeen,
-                  style: const TextStyle(color: Color(0xFF87928C), fontSize: 10),
+                  style: const TextStyle(
+                    color: Color(0xFF87928C),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
@@ -85,25 +83,40 @@ class UserProfileScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _actionButton(Icons.message_outlined, "Message", const Color(0xFF168A62), () {
-                  ChatModel chat = ChatModel(
-                    name: name,
-                    img: imageUrl ?? '',
-                    isGroup: false,
-                  );
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => IndividualPage(chatModel: chat),
-                    ),
-                  );
-                }),
-                _actionButton(Icons.call_outlined, "Call", const Color(0xFF168A62), () {
-                  _startCall(context, CallMedia.audio);
-                }),
-                _actionButton(Icons.videocam_outlined, "Video", const Color(0xFF168A62), () {
-                  _startCall(context, CallMedia.video);
-                }),
+                _actionButton(
+                  Icons.message_outlined,
+                  "Message",
+                  const Color(0xFF168A62),
+                  () {
+                    ChatModel chat = ChatModel(
+                      name: name,
+                      img: imageUrl ?? '',
+                      isGroup: false,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => IndividualPage(chatModel: chat),
+                      ),
+                    );
+                  },
+                ),
+                _actionButton(
+                  Icons.call_outlined,
+                  "Call",
+                  const Color(0xFF168A62),
+                  () {
+                    _startCall(context, CallMedia.audio);
+                  },
+                ),
+                _actionButton(
+                  Icons.videocam_outlined,
+                  "Video",
+                  const Color(0xFF168A62),
+                  () {
+                    _startCall(context, CallMedia.video);
+                  },
+                ),
               ],
             ),
           ),
@@ -174,7 +187,7 @@ class UserProfileScreen extends StatelessWidget {
           child: CircleAvatar(
             radius: 28,
             backgroundColor: color,
-          child: Icon(icon, color: Colors.white),
+            child: Icon(icon, color: Colors.white),
           ),
         ),
         const SizedBox(height: 6),
@@ -196,7 +209,15 @@ class UserProfileScreen extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ListTile(
-        leading: Container(width: 36, height: 36, decoration: const BoxDecoration(color: Color(0xFFEAF4EE), shape: BoxShape.circle), child: Icon(icon, color: const Color(0xFF168A62), size: 18)),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: Color(0xFFEAF4EE),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: const Color(0xFF168A62), size: 18),
+        ),
         title: Text(
           title,
           style: const TextStyle(

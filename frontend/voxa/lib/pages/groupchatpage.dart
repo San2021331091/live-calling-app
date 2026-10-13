@@ -1,3 +1,5 @@
+import 'package:voxa/customui/avatar_photo.dart';
+import 'package:voxa/customui/chat_theme_picker.dart';
 import 'package:voxa/customui/delete_chat_dialog.dart';
 import 'package:voxa/services/attachment_actions.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -46,6 +48,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isLoading = true;
   bool _sendingText = false;
   late bool _muted;
+  late String _avatarUrl, _theme, _personalTheme, _sharedTheme;
+  ChatPalette get _palette => ChatPalette.fromId(_theme);
   DateTime? _clearedBefore;
   bool _clearing = false;
   String? _chatError;
@@ -58,6 +62,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void initState() {
     super.initState();
     _muted = widget.group.muted;
+    _avatarUrl = widget.group.img;
+    _theme = widget.group.theme;
+    _personalTheme = widget.group.personalTheme;
+    _sharedTheme = widget.group.sharedTheme;
     _groupName = widget.group.name;
     _initializeChat();
   }
@@ -71,6 +79,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _subscription?.cancel();
     _channel?.sink.close();
     super.dispose();
+  }
+
+  Future<void> _refreshAppearance() async {
+    final id = widget.group.id;
+    if (id == null) return;
+    try {
+      final appearance = await ApiClient.instance.loadChatAppearance(id);
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = appearance['avatar_url'] as String? ?? '';
+        _theme = appearance['theme'] as String? ?? 'classic';
+        _personalTheme = appearance['personal_theme'] as String? ?? '';
+        _sharedTheme = appearance['shared_theme'] as String? ?? 'classic';
+        _groupName = appearance['name'] as String? ?? _groupName;
+      });
+    } catch (_) {
+      /* Existing appearance remains usable; retry on reconnect. */
+    }
+  }
+
+  Future<void> _chooseTheme() async {
+    final id = widget.group.id;
+    if (id == null) return;
+    await _refreshAppearance();
+    if (!mounted) return;
+    final saved = await showChatThemePicker(
+      context,
+      chatId: id,
+      personalTheme: _personalTheme,
+      sharedTheme: _sharedTheme,
+      isGroup: true,
+      canManageShared: widget.group.isCreator,
+    );
+    if (saved == true) await _refreshAppearance();
   }
 
   Future<void> _initializeChat() async {
@@ -107,6 +149,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           if (mounted) setState(() => _chatError = 'Live connection closed.');
         },
       );
+      await _refreshAppearance();
       final history = await ApiClient.instance.loadMessages(chatId);
       if (!mounted) return;
       setState(() {
@@ -156,6 +199,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
     try {
       final decoded = jsonDecode(event as String) as Map<String, dynamic>;
       ApiClient.instance.handleChatEvent(_channel, decoded);
+      if (decoded['type'] == 'appearance_changed') {
+        unawaited(_refreshAppearance());
+        return;
+      }
       if (decoded['type'] == 'history_cleared') {
         final cutoff = DateTime.parse(decoded['cleared_before'] as String);
         if (mounted) {
@@ -204,7 +251,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: _palette.background,
       appBar: _greenAppBar(),
       body: Column(
         children: [
@@ -217,12 +264,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   PreferredSizeWidget _greenAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF0E4D45),
+      backgroundColor: _palette.header,
       elevation: 0,
       flexibleSpace: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0C544B), Color(0xFF123E39)],
+            colors: [_palette.header, _palette.header],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -230,14 +277,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
       ),
       title: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.groups_2_rounded, color: Colors.white),
+          AvatarPhotoEditor(
+            url: _avatarUrl,
+            radius: 21,
+            icon: Icons.groups_2_rounded,
+            enabled: widget.group.isCreator && !_isManagingGroup,
+            onSave: (url) async {
+              await ApiClient.instance.updateGroupAppearance(
+                widget.group.id!,
+                avatarUrl: url,
+              );
+              if (mounted) setState(() => _avatarUrl = url);
+              widget.onChanged?.call();
+            },
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -279,6 +331,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         PopupMenuButton<String>(
           enabled: !_isManagingGroup,
           onSelected: (action) {
+            if (action == 'theme') _chooseTheme();
+            if (action == 'photo') _showGroupPhoto();
             if (action == 'edit') _editGroupName();
             if (action == 'delete') _deleteGroup();
             if (action == 'search') _openChatTools(search: true);
@@ -288,6 +342,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (action == 'delete_inbox') _deleteInboxChat();
           },
           itemBuilder: (_) => [
+            const PopupMenuItem(value: 'theme', child: Text('Chat theme')),
+            if (widget.group.isCreator)
+              const PopupMenuItem(value: 'photo', child: Text('Edit photo')),
             const PopupMenuItem(value: 'search', child: Text('Search')),
             const PopupMenuItem(
               value: 'media',
@@ -333,6 +390,46 @@ class _GroupChatPageState extends State<GroupChatPage> {
           ],
         ),
       ],
+    );
+  }
+
+  void _showGroupPhoto() {
+    var photo = _avatarUrl;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (sheetContext, updateSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.group.isCommunity == true
+                      ? 'Community photo'
+                      : 'Group photo',
+                ),
+                const SizedBox(height: 16),
+                AvatarPhotoEditor(
+                  url: photo,
+                  icon: Icons.groups_rounded,
+                  onSave: (url) async {
+                    await ApiClient.instance.updateGroupAppearance(
+                      widget.group.id!,
+                      avatarUrl: url,
+                    );
+                    if (mounted) {
+                      setState(() => _avatarUrl = url);
+                      widget.onChanged?.call();
+                    }
+                    if (sheetContext.mounted) updateSheet(() => photo = url);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -697,9 +794,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           maxWidth: MediaQuery.of(context).size.width * 0.76,
                         ),
                         decoration: BoxDecoration(
-                          color: msg.isMe
-                              ? const Color(0xFFDDF4E7)
-                              : Colors.white,
+                          color: msg.isMe ? _palette.bubble : Colors.white,
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(18),
                             topRight: const Radius.circular(18),

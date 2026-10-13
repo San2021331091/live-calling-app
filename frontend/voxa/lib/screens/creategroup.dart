@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/pages/addnewgroup.dart';
@@ -58,11 +59,19 @@ class _CreateGroupState extends State<CreateGroup> {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("New group",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,color: Colors.white)),
+            Text(
+              "New group",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
             SizedBox(height: 2),
-            Text("Add participants",
-                style: TextStyle(fontSize: 11, color: Colors.white70)),
+            Text(
+              "Add participants",
+              style: TextStyle(fontSize: 11, color: Colors.white70),
+            ),
           ],
         ),
       ),
@@ -97,11 +106,7 @@ class _CreateGroupState extends State<CreateGroup> {
               children: [
                 Stack(
                   children: [
-                    const CircleAvatar(
-                      radius: 24,
-                      backgroundColor: Color(0xFFE8F3ED),
-                      child: Icon(Icons.person, color: Color(0xFF168A62)),
-                    ),
+                    AvatarPhoto(url: user.avatarUrl),
                     Positioned(
                       bottom: -2,
                       right: -2,
@@ -112,19 +117,25 @@ class _CreateGroupState extends State<CreateGroup> {
                         child: const CircleAvatar(
                           radius: 10,
                           backgroundColor: Color(0xFFDB6B6B),
-                          child:
-                              Icon(Icons.close, size: 14, color: Colors.white),
+                          child: Icon(
+                            Icons.close,
+                            size: 14,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(user.name,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF35433C))),
+                Text(
+                  user.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF35433C),
+                  ),
+                ),
               ],
             ),
           );
@@ -157,10 +168,7 @@ class _CreateGroupState extends State<CreateGroup> {
         return ListTile(
           leading: Stack(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFE8F3ED),
-                child: Icon(Icons.person, color: Color(0xFF168A62)),
-              ),
+              AvatarPhoto(url: contact.avatarUrl),
               if (isSelected)
                 const Positioned(
                   bottom: 0,
@@ -168,21 +176,25 @@ class _CreateGroupState extends State<CreateGroup> {
                   child: CircleAvatar(
                     radius: 10,
                     backgroundColor: Color(0xFF168A62),
-                    child:
-                        Icon(Icons.check, size: 14, color: Colors.white),
+                    child: Icon(Icons.check, size: 14, color: Colors.white),
                   ),
                 ),
             ],
           ),
-          title: Text(contact.name,
-              style: const TextStyle(
-                  color: Color(0xFF17251F),
-                  fontWeight: FontWeight.w600)),
-          subtitle: Text(contact.phone,
-              style: const TextStyle(
-                  color: Color(0xFF75827B),
-                  fontWeight: FontWeight.w600,
-                  )),
+          title: Text(
+            contact.name,
+            style: const TextStyle(
+              color: Color(0xFF17251F),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            contact.phone,
+            style: const TextStyle(
+              color: Color(0xFF75827B),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           onTap: () {
             setState(() {
               isSelected

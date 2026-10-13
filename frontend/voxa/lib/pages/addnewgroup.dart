@@ -1,3 +1,4 @@
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
@@ -16,6 +17,8 @@ class AddNewGroup extends StatefulWidget {
 class _AddNewGroupState extends State<AddNewGroup> {
   final TextEditingController _nameController = TextEditingController();
   bool _isCreating = false;
+  bool _photoBusy = false;
+  String _avatarUrl = '';
 
   @override
   void dispose() {
@@ -35,6 +38,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
     try {
       final group = await ApiClient.instance.createGroup(
         name: name,
+        avatarUrl: _avatarUrl,
         members: widget.members.map((member) => member.id).toList(),
       );
       if (mounted) Navigator.pop<ChatModel>(context, group);
@@ -73,7 +77,7 @@ class _AddNewGroupState extends State<AddNewGroup> {
 
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF168A62),
-        onPressed: _isCreating ? null : _createGroup,
+        onPressed: _isCreating || _photoBusy ? null : _createGroup,
         child: _isCreating
             ? const CircularProgressIndicator(color: Colors.white)
             : const Icon(Icons.check, color: Colors.white),
@@ -86,10 +90,17 @@ class _AddNewGroupState extends State<AddNewGroup> {
           children: [
             Row(
               children: [
-                const CircleAvatar(
+                AvatarPhotoEditor(
+                  url: _avatarUrl,
                   radius: 28,
-                  backgroundColor: Color(0xFFDCE9E1),
-                  child: Icon(Icons.groups_rounded, color: Color(0xFF168A62)),
+                  icon: Icons.groups_rounded,
+                  enabled: !_isCreating,
+                  onBusyChanged: (busy) {
+                    if (mounted) setState(() => _photoBusy = busy);
+                  },
+                  onSave: (url) async {
+                    if (mounted) setState(() => _avatarUrl = url);
+                  },
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -134,7 +145,10 @@ class _AddNewGroupState extends State<AddNewGroup> {
                 itemCount: widget.members.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 16),
                 itemBuilder: (context, index) {
-                  return _MemberAvatar(name: widget.members[index].name);
+                  return _MemberAvatar(
+                    name: widget.members[index].name,
+                    url: widget.members[index].avatarUrl,
+                  );
                 },
               ),
             ),
@@ -149,17 +163,14 @@ class _AddNewGroupState extends State<AddNewGroup> {
 class _MemberAvatar extends StatelessWidget {
   final String name;
 
-  const _MemberAvatar({required this.name});
+  final String url;
+  const _MemberAvatar({required this.name, required this.url});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const CircleAvatar(
-          radius: 26,
-          backgroundColor: Color(0xFFE8F3ED),
-          child: Icon(Icons.person, color: Color(0xFF168A62)),
-        ),
+        AvatarPhoto(url: url, radius: 26),
         const SizedBox(height: 4),
         Text(
           name,

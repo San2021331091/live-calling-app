@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:voxa/customui/text_entry_dialog.dart';
 import '../test/media_editor_test.dart' as media;
+import '../test/appearance_test.dart' as appearance;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   media.main();
+  appearance.main();
 
   testWidgets('Renaming while the dialog closes does not crash', (
     tester,

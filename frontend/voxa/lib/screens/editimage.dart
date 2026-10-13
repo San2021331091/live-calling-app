@@ -13,7 +13,13 @@ import 'package:voxa/customui/text_entry_dialog.dart';
 class EditImage extends StatefulWidget {
   final File file;
   final bool isVideo;
-  const EditImage({super.key, required this.file, this.isVideo = false});
+  final bool avatarMode;
+  const EditImage({
+    super.key,
+    required this.file,
+    this.isVideo = false,
+    this.avatarMode = false,
+  });
   @override
   State<EditImage> createState() => _EditImageState();
 }
@@ -52,6 +58,7 @@ class _EditImageState extends State<EditImage> {
   @override
   void initState() {
     super.initState();
+    _crop = widget.avatarMode;
     _initialize();
   }
 
@@ -443,20 +450,23 @@ class _EditImageState extends State<EditImage> {
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _caption,
-                        enabled: !_saving,
-                        maxLines: 3,
-                        minLines: 1,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                          hintText: 'Add a caption...',
-                          hintStyle: TextStyle(color: Colors.white70),
-                          fillColor: Color(0xFF26352E),
+                    if (widget.avatarMode)
+                      const Spacer()
+                    else
+                      Expanded(
+                        child: TextField(
+                          controller: _caption,
+                          enabled: !_saving,
+                          maxLines: 3,
+                          minLines: 1,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Add a caption...',
+                            hintStyle: TextStyle(color: Colors.white70),
+                            fillColor: Color(0xFF26352E),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(width: 10),
                     IconButton.filled(
                       tooltip: 'Use edited media',

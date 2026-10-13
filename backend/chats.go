@@ -12,6 +12,10 @@ import (
 )
 
 type chat struct {
+	AvatarURL      string     `json:"avatar_url"`
+	Theme          string     `json:"theme"`
+	PersonalTheme  string     `json:"personal_theme"`
+	SharedTheme    string     `json:"shared_theme"`
 	Muted          bool       `json:"muted"`
 	LastSenderID   string     `json:"last_sender_id"`
 	ID             string     `json:"id"`
@@ -44,7 +48,7 @@ func (a *application) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := a.db.QueryContext(r.Context(),
-		`SELECT id::text, display_name, phone
+		`SELECT id::text, display_name, phone, COALESCE(avatar_url, '')
 		 FROM users
 		 WHERE id <> $1 AND ($2 = '' OR display_name ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%')
 		 ORDER BY display_name
@@ -60,7 +64,7 @@ func (a *application) handleUsers(w http.ResponseWriter, r *http.Request) {
 	users := make([]user, 0)
 	for rows.Next() {
 		var item user
-		if err := rows.Scan(&item.ID, &item.Name, &item.Phone); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.Phone, &item.AvatarURL); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not load users")
 			return
 		}
@@ -78,11 +82,13 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 		`SELECT c.id::text, c.kind, c.community_type,
 		        CASE WHEN c.kind <> 'direct' THEN c.title ELSE peer.display_name END,
 		        c.created_by = $1, peer.id::text, peer.phone, COALESCE(latest.content, ''),
-		        latest.created_at, mine.muted, COALESCE(latest.sender_id::text, '')
+		        latest.created_at, mine.muted, COALESCE(latest.sender_id::text, ''),
+		        CASE WHEN c.kind = 'direct' THEN COALESCE(peer.avatar_url, '') ELSE c.avatar_url END,
+		        COALESCE(NULLIF(mine.theme, ''), c.theme), mine.theme, c.theme
 		 FROM chats c
 		 JOIN chat_members mine ON mine.chat_id = c.id AND mine.user_id = $1
 		 LEFT JOIN LATERAL (
-		     SELECT u.id, u.display_name, u.phone
+		     SELECT u.id, u.display_name, u.phone, u.avatar_url
 		     FROM chat_members other_member
 		     JOIN users u ON u.id = other_member.user_id
 		     WHERE other_member.chat_id = c.id AND other_member.user_id <> $1
@@ -116,6 +122,7 @@ func (a *application) handleListChats(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(
 			&item.ID, &kind, &communityType, &item.Name, &item.IsCreator, &peerID, &peerPhone,
 			&item.CurrentMessage, &lastMessageAt, &item.Muted, &item.LastSenderID,
+			&item.AvatarURL, &item.Theme, &item.PersonalTheme, &item.SharedTheme,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not load chats")
 			return
@@ -245,27 +252,29 @@ func (a *application) handleCreateDirectChat(w http.ResponseWriter, r *http.Requ
 
 func (a *application) handleCreateGroupChat(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name    string   `json:"name"`
-		Members []string `json:"members"`
+		AvatarURL string   `json:"avatar_url"`
+		Name      string   `json:"name"`
+		Members   []string `json:"members"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	a.createMultiMemberChat(w, r, request.Name, "", request.Members, "group")
+	a.createMultiMemberChat(w, r, request.Name, "", request.Members, "group", request.AvatarURL)
 }
 
 func (a *application) handleCreateCommunity(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name    string   `json:"name"`
-		Type    string   `json:"type"`
-		Members []string `json:"members"`
+		AvatarURL string   `json:"avatar_url"`
+		Name      string   `json:"name"`
+		Type      string   `json:"type"`
+		Members   []string `json:"members"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	a.createMultiMemberChat(w, r, request.Name, request.Type, request.Members, "community")
+	a.createMultiMemberChat(w, r, request.Name, request.Type, request.Members, "community", request.AvatarURL)
 }
 
 func (a *application) handleUpdateGroupChat(w http.ResponseWriter, r *http.Request) {
@@ -275,24 +284,43 @@ func (a *application) handleUpdateGroupChat(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var request struct {
-		Name string `json:"name"`
+		Name      *string `json:"name"`
+		AvatarURL *string `json:"avatar_url"`
+		Theme     *string `json:"theme"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	name := strings.TrimSpace(request.Name)
-	if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 80 {
-		writeError(w, http.StatusBadRequest, "group name must contain 1 to 80 characters")
+	if request.Name == nil && request.AvatarURL == nil && request.Theme == nil {
+		writeError(w, http.StatusBadRequest, "no group fields supplied")
 		return
 	}
-	var updatedID string
+	if request.Name != nil {
+		*request.Name = strings.TrimSpace(*request.Name)
+		if utf8.RuneCountInString(*request.Name) < 1 || utf8.RuneCountInString(*request.Name) > 80 {
+			writeError(w, http.StatusBadRequest, "group name must contain 1 to 80 characters")
+			return
+		}
+	}
+	if request.AvatarURL != nil {
+		*request.AvatarURL = strings.TrimSpace(*request.AvatarURL)
+		if !validAvatarURL(*request.AvatarURL) {
+			writeError(w, http.StatusBadRequest, "photo must use an HTTPS URL up to 2048 characters")
+			return
+		}
+	}
+	if request.Theme != nil && !validChatTheme(*request.Theme) {
+		writeError(w, http.StatusBadRequest, "invalid chat theme")
+		return
+	}
+	var updatedID, name, avatar, theme string
 	err := a.db.QueryRowContext(r.Context(),
-		`UPDATE chats SET title = $3
+		`UPDATE chats SET title = COALESCE($3, title), avatar_url = COALESCE($4, avatar_url), theme = COALESCE($5, theme)
 		 WHERE id = $1 AND created_by = $2 AND kind IN ('group', 'community')
-		 RETURNING id::text`,
-		chatID, authenticatedUserID(r), name,
-	).Scan(&updatedID)
+		 RETURNING id::text, title, avatar_url, theme`,
+		chatID, authenticatedUserID(r), request.Name, request.AvatarURL, request.Theme,
+	).Scan(&updatedID, &name, &avatar, &theme)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusForbidden, "only the group creator can edit this conversation")
 		return
@@ -301,7 +329,8 @@ func (a *application) handleUpdateGroupChat(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "could not update group")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"id": updatedID, "name": name})
+	a.hub.appearanceChanged(chatID, "")
+	writeJSON(w, http.StatusOK, map[string]string{"id": updatedID, "name": name, "avatar_url": avatar, "shared_theme": theme})
 }
 
 func (a *application) handleDeleteGroupChat(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +365,13 @@ func (a *application) createMultiMemberChat(
 	communityType string,
 	memberIDs []string,
 	kind string,
+	avatarURL string,
 ) {
+	avatarURL = strings.TrimSpace(avatarURL)
+	if !validAvatarURL(avatarURL) {
+		writeError(w, http.StatusBadRequest, "photo must use an HTTPS URL up to 2048 characters")
+		return
+	}
 	name = strings.TrimSpace(name)
 	communityType = strings.TrimSpace(communityType)
 	if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 80 {
@@ -375,15 +410,15 @@ func (a *application) createMultiMemberChat(
 	var chatID string
 	if kind == "community" {
 		err = tx.QueryRowContext(r.Context(),
-			`INSERT INTO chats (kind, title, community_type, created_by)
-			 VALUES ('community', $1, $2, $3) RETURNING id::text`,
-			name, communityType, authenticatedUserID(r),
+			`INSERT INTO chats (kind, title, community_type, created_by, avatar_url)
+			 VALUES ('community', $1, $2, $3, $4) RETURNING id::text`,
+			name, communityType, authenticatedUserID(r), avatarURL,
 		).Scan(&chatID)
 	} else {
 		err = tx.QueryRowContext(r.Context(),
-			`INSERT INTO chats (kind, title, created_by)
-			 VALUES ('group', $1, $2) RETURNING id::text`,
-			name, authenticatedUserID(r),
+			`INSERT INTO chats (kind, title, created_by, avatar_url)
+			 VALUES ('group', $1, $2, $3) RETURNING id::text`,
+			name, authenticatedUserID(r), avatarURL,
 		).Scan(&chatID)
 	}
 	if err != nil {
@@ -413,6 +448,7 @@ func (a *application) createMultiMemberChat(
 	writeJSON(w, http.StatusCreated, chat{
 		ID: chatID, Name: name, IsCreator: true, IsGroup: true,
 		IsCommunity: kind == "community", CommunityType: communityType,
+		AvatarURL: avatarURL, Theme: "classic", SharedTheme: "classic",
 	})
 }
 
@@ -587,17 +623,23 @@ func (a *application) handleChatPreferences(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var request struct {
-		Muted *bool `json:"muted"`
+		Muted *bool   `json:"muted"`
+		Theme *string `json:"theme"`
 	}
-	if decodeJSON(w, r, &request) != nil || request.Muted == nil {
-		writeError(w, http.StatusBadRequest, "muted must be true or false")
+	if decodeJSON(w, r, &request) != nil || (request.Muted == nil && request.Theme == nil) {
+		writeError(w, http.StatusBadRequest, "supply muted or theme")
+		return
+	}
+	if request.Theme != nil && *request.Theme != "" && !validChatTheme(*request.Theme) {
+		writeError(w, http.StatusBadRequest, "invalid chat theme")
 		return
 	}
 	var muted bool
+	var theme string
 	err := a.db.QueryRowContext(r.Context(),
-		`UPDATE chat_members SET muted = $3 WHERE chat_id = $1 AND user_id = $2 RETURNING muted`,
-		chatID, authenticatedUserID(r), *request.Muted,
-	).Scan(&muted)
+		`UPDATE chat_members SET muted = COALESCE($3, muted), theme = COALESCE($4, theme) WHERE chat_id = $1 AND user_id = $2 RETURNING muted, theme`,
+		chatID, authenticatedUserID(r), request.Muted, request.Theme,
+	).Scan(&muted, &theme)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusForbidden, "you are not a member of this chat")
 		return
@@ -606,7 +648,8 @@ func (a *application) handleChatPreferences(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "could not save chat preferences")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
+	a.hub.appearanceChanged(chatID, authenticatedUserID(r))
+	writeJSON(w, http.StatusOK, map[string]any{"muted": muted, "personal_theme": theme})
 }
 
 func (a *application) requireChatMember(ctx context.Context, chatID, userID string) error {

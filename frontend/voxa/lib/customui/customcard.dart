@@ -1,4 +1,5 @@
 import 'package:voxa/customui/delete_chat_dialog.dart';
+import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/pages/groupchatpage.dart';
@@ -39,16 +40,12 @@ class CustomCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 2),
-                leading: CircleAvatar(
+                leading: AvatarPhoto(
+                  url: chatModel.img,
                   radius: 25,
-                  backgroundColor: const Color(0xFFE8F3ED),
-                  child: Icon(
-                    chatModel.isGroup == true
-                        ? Icons.groups_2_rounded
-                        : Icons.person_rounded,
-                    color: const Color(0xFF168A62),
-                    size: 25,
-                  ),
+                  icon: chatModel.isGroup == true
+                      ? Icons.groups_2_rounded
+                      : Icons.person_rounded,
                 ),
                 title: Text(
                   chatModel.name,

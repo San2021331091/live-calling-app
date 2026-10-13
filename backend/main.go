@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 	"io/fs"
 	"log"
 	"os"
 	"strings"
 	"time"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/joho/godotenv"
 )
 
 //go:embed migrations/*.sql
@@ -19,6 +19,7 @@ var migrationFiles embed.FS
 
 type application struct {
 	db        *sql.DB
+	callRedis *callRedis
 	jwtSecret []byte
 	origins   map[string]struct{}
 	allowAll  bool
@@ -37,6 +38,21 @@ func main() {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if len(jwtSecret) < 32 {
 		log.Fatal("JWT_SECRET must contain at least 32 characters")
+	}
+	redisURL := strings.TrimSpace(os.Getenv("REDIS_URL"))
+	if redisURL == "" {
+		log.Fatal("REDIS_URL is required for call signaling")
+	}
+	callStore, err := newCallRedis(redisURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer callStore.client.Close()
+	redisCtx, redisCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	redisErr := callStore.ping(redisCtx)
+	redisCancel()
+	if redisErr != nil {
+		log.Fatal("connect to Redis: call service is unavailable")
 	}
 
 	db, err := sql.Open("pgx", databaseURL)
@@ -59,6 +75,7 @@ func main() {
 
 	app := &application{
 		db:        db,
+		callRedis: callStore,
 		jwtSecret: []byte(jwtSecret),
 		hub:       newMessageHub(),
 	}

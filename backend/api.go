@@ -79,6 +79,7 @@ func (a *application) routes() *fiber.App {
 	register("GET", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleMessages)), "chatID")
 	register("DELETE", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleClearChatHistory)), "chatID")
 	register("PATCH", "/api/chats/:chatID/preferences", a.auth(http.HandlerFunc(a.handleChatPreferences)), "chatID")
+	register("GET", "/api/chats/:chatID/appearance", a.auth(http.HandlerFunc(a.handleChatAppearance)), "chatID")
 	register("DELETE", "/api/chats/:chatID/inbox", a.auth(http.HandlerFunc(a.handleDeleteInboxChat)), "chatID")
 	register("GET", "/api/chats/:chatID/members", a.auth(http.HandlerFunc(a.handleListChatMembers)), "chatID")
 	register("POST", "/api/chats/:chatID/calls", a.auth(http.HandlerFunc(a.handleCreateGroupCall)), "chatID")
@@ -111,6 +112,10 @@ func (a *application) handleReady(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := a.db.PingContext(ctx); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "database is unavailable")
+		return
+	}
+	if err := a.callRedis.ping(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "Redis is unavailable")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})

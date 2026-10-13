@@ -66,6 +66,29 @@ class ApiClient {
     );
   }
 
+  Future<void> updateGroupAppearance(
+    String chatId, {
+    String? avatarUrl,
+    String? theme,
+  }) async {
+    await _request(
+      _baseUri.resolve('api/chats/$chatId'),
+      method: 'PATCH',
+      body: {'avatar_url': ?avatarUrl, 'theme': ?theme},
+    );
+  }
+
+  Future<Map<String, dynamic>> loadChatAppearance(String chatId) =>
+      _request(_baseUri.resolve('api/chats/$chatId/appearance'));
+
+  Future<void> setChatTheme(String chatId, String theme) async {
+    await _request(
+      _baseUri.resolve('api/chats/$chatId/preferences'),
+      method: 'PATCH',
+      body: {'theme': theme},
+    );
+  }
+
   Future<void> deleteGroup(String chatId) async {
     await _request(_baseUri.resolve('api/chats/$chatId'), method: 'DELETE');
   }
@@ -132,11 +155,15 @@ class ApiClient {
     return user;
   }
 
-  Future<UserModel> updateProfile({String? name, String? bio}) async {
+  Future<UserModel> updateProfile({
+    String? name,
+    String? bio,
+    String? avatarUrl,
+  }) async {
     final result = await _request(
       _baseUri.resolve('api/profile'),
       method: 'PATCH',
-      body: {'name': ?name, 'bio': ?bio},
+      body: {'name': ?name, 'bio': ?bio, 'avatar_url': ?avatarUrl},
     );
     final user = UserModel.fromJson(result);
     _cachedUserName = user.name;
@@ -213,11 +240,12 @@ class ApiClient {
   Future<ChatModel> createGroup({
     required String name,
     required List<String> members,
+    String avatarUrl = '',
   }) async {
     final result = await _request(
       _baseUri.resolve('api/chats/groups'),
       method: 'POST',
-      body: {'name': name, 'members': members},
+      body: {'name': name, 'members': members, 'avatar_url': avatarUrl},
     );
     return ChatModel.fromJson(result);
   }
@@ -226,11 +254,17 @@ class ApiClient {
     required String name,
     required String type,
     required List<String> members,
+    String avatarUrl = '',
   }) async {
     final result = await _request(
       _baseUri.resolve('api/chats/communities'),
       method: 'POST',
-      body: {'name': name, 'type': type, 'members': members},
+      body: {
+        'name': name,
+        'type': type,
+        'members': members,
+        'avatar_url': avatarUrl,
+      },
     );
     return ChatModel.fromJson(result);
   }

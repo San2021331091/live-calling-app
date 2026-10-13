@@ -134,10 +134,10 @@ func (a *application) handleProfile(w http.ResponseWriter, r *http.Request) {
 
 func (a *application) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name      string `json:"name"`
-		Phone     string `json:"phone"`
-		Bio       string `json:"bio"`
-		AvatarURL string `json:"avatar_url"`
+		Name      string  `json:"name"`
+		Phone     string  `json:"phone"`
+		Bio       *string `json:"bio"`
+		AvatarURL *string `json:"avatar_url"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -166,8 +166,8 @@ func (a *application) handleUpdateProfile(w http.ResponseWriter, r *http.Request
 		updates = append(updates, "phone = $"+strconv.Itoa(len(args)+1))
 		args = append(args, phone)
 	}
-	if request.Bio != "" {
-		bio := strings.TrimSpace(request.Bio)
+	if request.Bio != nil {
+		bio := strings.TrimSpace(*request.Bio)
 		if utf8.RuneCountInString(bio) > 240 {
 			writeError(w, http.StatusBadRequest, "bio must contain at most 240 characters")
 			return
@@ -175,10 +175,10 @@ func (a *application) handleUpdateProfile(w http.ResponseWriter, r *http.Request
 		updates = append(updates, "bio = $"+strconv.Itoa(len(args)+1))
 		args = append(args, bio)
 	}
-	if request.AvatarURL != "" {
-		avatarURL := strings.TrimSpace(request.AvatarURL)
-		if utf8.RuneCountInString(avatarURL) > 2048 {
-			writeError(w, http.StatusBadRequest, "avatar URL is too long")
+	if request.AvatarURL != nil {
+		avatarURL := strings.TrimSpace(*request.AvatarURL)
+		if !validAvatarURL(avatarURL) {
+			writeError(w, http.StatusBadRequest, "photo must use an HTTPS URL up to 2048 characters")
 			return
 		}
 		updates = append(updates, "avatar_url = $"+strconv.Itoa(len(args)+1))
