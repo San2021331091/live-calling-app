@@ -818,9 +818,23 @@ class ApiClient {
     try {
       return await request();
     } on DioException catch (error) {
-      throw ApiException(
-        error.message ?? 'Could not connect to the backend API',
-      );
+      throw ApiException(switch (error.type) {
+        DioExceptionType.connectionTimeout =>
+          'Could not reach Voxa in time. Check your connection and try again.',
+        DioExceptionType.connectionError =>
+          'Could not connect to Voxa. Check your connection and try again.',
+        DioExceptionType.sendTimeout ||
+        DioExceptionType.receiveTimeout ||
+        DioExceptionType.transformTimeout =>
+          'The request timed out. Check for updates before trying again.',
+        DioExceptionType.badCertificate =>
+          'Could not establish a secure connection to Voxa.',
+        DioExceptionType.cancel => 'The request was cancelled.',
+        DioExceptionType.badResponse =>
+          'Voxa is temporarily unavailable. Please try again later.',
+        DioExceptionType.unknown =>
+          'Could not complete the request. Please try again.',
+      });
     }
   }
 
