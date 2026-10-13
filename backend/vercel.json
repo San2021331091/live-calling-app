@@ -5,10 +5,5 @@
       "source": "/:path*",
       "destination": "/api?__vercel_path=/:path*"
     }
-  ],
-  "functions": {
-    "api/index.go": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
