@@ -22,7 +22,7 @@ From the repository root, run:
 
 ```powershell
 Set-Location backend
-go run .
+go run ./cmd/server
 ```
 
 At startup the backend checks its PostgreSQL connection and applies any pending SQL files in `backend/migrations/`. This creates the `users`, `chats`, `chat_members`, and `messages` tables; the migration history is kept in `schema_migrations`. No manual table setup is required.
@@ -40,6 +40,43 @@ flutter run
 ```
 
 The frontend reads `API_BASE_URL` from `frontend/voxa/.env`. That local file is ignored by Git; `.env.example` is the committed template. `10.0.2.2` is the Android emulator address for the host machine. For a physical device, edit `.env` to use the computer's LAN address, for example `http://192.168.1.20:8080`. For Flutter Web or desktop, use the backend's reachable address, commonly `http://localhost:8080`.
+
+## Deploying the HTTP API to Vercel
+
+The Vercel project root must be `backend/`. The Go function serves the HTTP API,
+but Vercel Functions are not used for the app's long-lived chat WebSockets or
+background push worker. Keep the regular Go server running on an always-on host
+such as Render or Railway; it owns `/ws/{chatId}` and drains queued FCM jobs.
+Both deployments must use the same PostgreSQL database, Redis instance, and
+JWT secret. The always-on server applies migrations when it starts; Vercel
+functions do not run migrations.
+
+Set these Vercel project environment variables for Production (and Preview if
+needed):
+
+- `DATABASE_URL`: PostgreSQL connection string; use your provider's pooled URL.
+- `REDIS_URL`: hosted Redis connection URL (`rediss://` when TLS is required).
+- `JWT_SECRET`: the same random secret used by the always-on server.
+- `CORS_ORIGINS`: comma-separated deployed web-app origins.
+- `FCM_ENABLED=true`, `FIREBASE_PROJECT_ID`, and `FIREBASE_SERVICE_ACCOUNT_JSON`:
+  the Firebase service-account JSON as a Vercel secret variable. The separate
+  always-on worker should use `GOOGLE_APPLICATION_CREDENTIALS` pointing to its
+  private service-account file instead.
+
+In Vercel, deploy the repository with **Root Directory** set to `backend` and
+**Framework Preset** set to **Other** so Vercel builds the `/api` Go Function
+rather than treating the separate `cmd/server` process as the Vercel server.
+`backend/vercel.json` routes requests to the Go function. The Vercel instance
+serves HTTP API routes and call-signaling endpoints; it deliberately returns
+`501` for chat WebSocket upgrades. Calls still use the HTTP/Redis signaling
+endpoints.
+
+For a deployed Flutter build, set `API_BASE_URL` to the Vercel deployment URL
+and `CHAT_WS_BASE_URL` to the HTTPS URL of the always-on Go server. The latter
+is also used for file upload/download so the app's 15 MB document feature does
+not hit Vercel's request/response body-size limits. Set `CORS_ORIGINS` on the
+always-on server to the web app origin too. Keep all service credentials out of
+Flutter configuration and source control.
 
 The debug Android manifest permits local cleartext HTTP for development. Configure HTTPS for deployed builds; do not expose the development API over an untrusted network. Set `CORS_ORIGINS` to a comma-separated list of trusted web app origins when deploying.
 
@@ -180,7 +217,7 @@ to see registration status, retry, or open Android notification settings.
 2. Enable the Firebase Cloud Messaging API for that project. Give the backend
    service account permission to send FCM messages (Firebase Cloud Messaging API
    Admin role). Store its private JSON key at
-   `backend/secrets/firebase-service-account.json`, or use Application Default
+   `backend/secrets/firebase_service_account.json`, or use Application Default
    Credentials on your server (unset `GOOGLE_APPLICATION_CREDENTIALS` when using
    credentials supplied by the hosting environment). Never put this private key in Flutter assets.
 3. Configure `backend/.env`:
@@ -188,10 +225,10 @@ to see registration status, retry, or open Android notification settings.
    ```dotenv
    FCM_ENABLED=true
    FIREBASE_PROJECT_ID=your-firebase-project-id
-   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-service-account.json
+   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase_service_account.json
    ```
 
-4. Restart with `go run .` from `backend` to apply migration 011 and start the
+4. Restart with `go run ./cmd/server` from `backend` to apply migration 011 and start the
    sender. Rebuild/install the Android app with `flutter run`; hot reload cannot
    install Firebase's native configuration. Sign in and allow notifications.
    Use a device/emulator with Google Play services.

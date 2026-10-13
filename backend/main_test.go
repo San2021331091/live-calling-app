@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -35,6 +35,18 @@ func TestConfiguredDatabaseURL(t *testing.T) {
 				t.Fatalf("configuredDatabaseURLFrom() = %q, want %q", got, test.expected)
 			}
 		})
+	}
+}
+
+func TestVercelRoutesRejectChatWebSocket(t *testing.T) {
+	app := &application{}
+	response, err := app.routes(false).Test(httptest.NewRequest(http.MethodGet, "/ws/123e4567-e89b-42d3-a456-426614174001", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("Vercel WebSocket route returned %d, want %d", response.StatusCode, http.StatusNotImplemented)
 	}
 }
 

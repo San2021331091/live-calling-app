@@ -83,6 +83,18 @@ class ApiClient {
     return uri;
   }
 
+  Uri get _chatWebSocketBaseUri {
+    final configuredBaseUrl = dotenv.env['CHAT_WS_BASE_URL']?.trim() ?? '';
+    if (configuredBaseUrl.isEmpty) return _baseUri;
+    final uri = Uri.parse(configuredBaseUrl);
+    if (uri.host.isEmpty || !{'http', 'https'}.contains(uri.scheme)) {
+      throw const ApiException(
+        'CHAT_WS_BASE_URL must be an absolute HTTP or HTTPS URL',
+      );
+    }
+    return uri;
+  }
+
   Future<void> updateGroupName(String chatId, String name) async {
     await _request(
       _baseUri.resolve('api/chats/$chatId'),
@@ -353,7 +365,7 @@ class ApiClient {
     });
     final response = await _sendRequest(
       () => _dio.postUri<dynamic>(
-        _baseUri.resolve('api/files'),
+        _chatWebSocketBaseUri.resolve('api/files'),
         data: form,
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
@@ -366,7 +378,7 @@ class ApiClient {
   }
 
   MessageModel decodeMessage(Map<String, dynamic> data) =>
-      MessageModel.fromJson(data, mediaBaseUri: _baseUri);
+      MessageModel.fromJson(data, mediaBaseUri: _chatWebSocketBaseUri);
 
   Future<List<StatusModel>> loadStatuses() async {
     final result = await _request(_baseUri.resolve('api/statuses'));
@@ -424,7 +436,7 @@ class ApiClient {
         'Your session has expired. Please sign in again.',
       );
     }
-    final base = _baseUri;
+    final base = _chatWebSocketBaseUri;
     final uri = base.replace(
       scheme: base.scheme == 'https' ? 'wss' : 'ws',
       path: '/ws/$chatId',

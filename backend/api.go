@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -23,7 +24,16 @@ type apiError struct {
 	Error string `json:"error"`
 }
 
-func (a *application) routes() *fiber.App {
+func NewVercelHandler(ctx context.Context) (http.Handler, error) {
+	app, _, err := newApplication(ctx, strings.TrimSpace(os.Getenv("DATABASE_URL")), false)
+	if err != nil {
+		return nil, err
+	}
+	return adaptor.FiberApp(app.routes(false)), nil
+}
+
+func (a *application) routes(webSocketSetting ...bool) *fiber.App {
+	includeWebSocket := len(webSocketSetting) == 0 || webSocketSetting[0]
 	server := fiber.New(fiber.Config{
 		AppName:      "Voxa API",
 		BodyLimit:    20 * 1024 * 1024,
@@ -101,11 +111,17 @@ func (a *application) routes() *fiber.App {
 	register("POST", "/api/calls/:callID/signal", a.auth(http.HandlerFunc(a.handleCallSignal)), "callID")
 	register("GET", "/api/calls/:callID/signals", a.auth(http.HandlerFunc(a.handleCallSignals)), "callID")
 	register("POST", "/api/calls/:callID/end", a.auth(http.HandlerFunc(a.handleEndCall)), "callID")
-	server.Get(
-		"/ws/:chatID",
-		a.authorizeChatWebSocket,
-		fiberwebsocket.New(a.handleWebSocket),
-	)
+	if includeWebSocket {
+		server.Get(
+			"/ws/:chatID",
+			a.authorizeChatWebSocket,
+			fiberwebsocket.New(a.handleWebSocket),
+		)
+	} else {
+		server.Get("/ws/:chatID", func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusNotImplemented).JSON(apiError{Error: "chat WebSockets must use the realtime backend"})
+		})
+	}
 	return server
 }
 

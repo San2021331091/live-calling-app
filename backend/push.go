@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
+	"google.golang.org/api/option"
 )
 
 type pushSender interface {
@@ -31,7 +32,11 @@ func configuredPushSender(ctx context.Context) (pushSender, error) {
 	if project == "" {
 		return nil, errors.New("FIREBASE_PROJECT_ID is required when FCM is enabled")
 	}
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: project})
+	var options []option.ClientOption
+	if credentialsJSON := strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")); credentialsJSON != "" {
+		options = append(options, option.WithCredentialsJSON([]byte(credentialsJSON)))
+	}
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: project}, options...)
 	if err != nil {
 		return nil, errors.New("Firebase initialization failed; check server credentials")
 	}
