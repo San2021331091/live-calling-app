@@ -3,6 +3,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api?__vercel_path=/"
+    },
+    {
       "source": "/:path*",
       "destination": "/api?__vercel_path=/:path*"
     }

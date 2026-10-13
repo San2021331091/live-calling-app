@@ -18,3 +18,14 @@ func TestRequestWithOriginalPath(t *testing.T) {
 		t.Fatalf("rewrite query parameter was not removed: %q", got)
 	}
 }
+
+func TestRequestWithOriginalRootPath(t *testing.T) {
+	request := httptest.NewRequest("GET", "/api?__vercel_path=/", nil)
+	rewritten := requestWithOriginalPath(request)
+	if rewritten.URL.Path != "/" {
+		t.Fatalf("request path = %q, want /", rewritten.URL.Path)
+	}
+	if got := rewritten.URL.Query().Get("__vercel_path"); got != "" {
+		t.Fatalf("rewrite query parameter was not removed: %q", got)
+	}
+}
