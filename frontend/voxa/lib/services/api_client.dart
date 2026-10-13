@@ -92,11 +92,7 @@ class ApiClient {
 
   Uri get _baseUri {
     final configuredBaseUrl = dotenv.env['API_BASE_URL']?.trim() ?? '';
-    final value = configuredBaseUrl.isNotEmpty
-        ? configuredBaseUrl
-        : kIsWeb
-        ? 'http://localhost:8080'
-        : 'http://10.0.2.2:8080';
+    final value = configuredBaseUrl.isNotEmpty ? configuredBaseUrl : '';
     final uri = Uri.parse(value);
     if (uri.host.isEmpty || !{'http', 'https'}.contains(uri.scheme)) {
       throw const ApiException(
