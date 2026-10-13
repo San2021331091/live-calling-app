@@ -42,5 +42,8 @@ func requestWithOriginalPath(r *http.Request) *http.Request {
 		urlCopy.RawQuery = query.Encode()
 	}
 	request.URL = &urlCopy
+	// Fiber's net/http adaptor reads RequestURI, not URL. Keep both in sync
+	// so the restored path and query cursors reach the backend handlers.
+	request.RequestURI = urlCopy.RequestURI()
 	return request
 }
