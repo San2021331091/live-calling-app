@@ -14,10 +14,24 @@ deployed backend.
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/Screenshot%202026-10-14%20000530.png" alt="Voxa direct chat" width="220">
-  <img src="screenshots/Screenshot%202026-10-14%20000506.png" alt="Voxa call history" width="220">
-  <img src="screenshots/Screenshot%202026-10-14%20000742.png" alt="Voxa communities" width="220">
-  <img src="screenshots/Screenshot%202026-10-14%20000914.png" alt="VoxaAI chat" width="220">
+  <img src="screenshots/Screenshot%202026-10-13%20225040.png" alt="Screenshot 1" width="220">
+  <img src="screenshots/Screenshot%202026-10-13%20225139.png" alt="Screenshot 2" width="220">
+  <img src="screenshots/Screenshot%202026-10-13%20225327.png" alt="Screenshot 3" width="220">
+  <img src="screenshots/Screenshot%202026-10-13%20225459.png" alt="Screenshot 4" width="220">
+  <img src="screenshots/Screenshot%202026-10-13%20232935.png" alt="Screenshot 5" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000147.png" alt="Screenshot 6" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000218.png" alt="Screenshot 7" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000247.png" alt="Screenshot 8" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000342.png" alt="Screenshot 9" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000432.png" alt="Screenshot 10" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000506.png" alt="Screenshot 11" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000530.png" alt="Screenshot 12" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000602.png" alt="Screenshot 13" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000742.png" alt="Screenshot 14" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000914.png" alt="Screenshot 15" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000945.png" alt="Screenshot 16" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20001002.png" alt="Screenshot 17" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20005100.png" alt="Screenshot 18" width="220">
 </p>
 
 ## Requirements
