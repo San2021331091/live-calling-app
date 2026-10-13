@@ -24,6 +24,7 @@ type application struct {
 	origins   map[string]struct{}
 	allowAll  bool
 	hub       *messageHub
+	push      pushSender
 }
 
 func main() {
@@ -80,6 +81,19 @@ func main() {
 		hub:       newMessageHub(),
 	}
 	app.configureOrigins(os.Getenv("CORS_ORIGINS"))
+	pushCtx, stopPush := context.WithCancel(context.Background())
+	defer stopPush()
+	app.push, err = configuredPushSender(pushCtx)
+	if err != nil {
+		log.Printf("FCM notifications disabled: %v", err)
+		app.push = nil
+	}
+	if app.push != nil {
+		log.Print("FCM notifications enabled")
+	} else {
+		log.Print("FCM notifications disabled; configure Firebase and FCM_ENABLED to enable")
+	}
+	go app.runPushWorker(pushCtx)
 
 	server := app.routes()
 	address := ":" + envOr("PORT", "8080")

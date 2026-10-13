@@ -48,6 +48,8 @@ app.*.map.json
 **/key.properties
 *.jks
 *.keystore
+android/app/google-services.json
+**/GoogleService-Info.plist
 
 # Platform-generated files and local machine configuration
 **/android/local.properties

@@ -29,6 +29,31 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._();
 
+  Future<void> Function()? beforeSignOut;
+
+  Future<void> registerPushDevice(
+    String installationId,
+    String token,
+    String platform,
+  ) async {
+    await _request(
+      _baseUri.resolve('api/devices/push'),
+      method: 'POST',
+      body: {
+        'installation_id': installationId,
+        'token': token,
+        'platform': platform,
+      },
+    );
+  }
+
+  Future<void> unregisterPushDevice(String installationId) async {
+    await _request(
+      _baseUri.resolve('api/devices/push/$installationId'),
+      method: 'DELETE',
+    );
+  }
+
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'access_token';
   static const _userIdKey = 'user_id';
@@ -172,6 +197,7 @@ class ApiClient {
   }
 
   Future<void> signOut() async {
+    await beforeSignOut?.call();
     await _storage.deleteAll();
     _cachedUserId = '';
     _cachedUserName = '';

@@ -5,6 +5,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Allow local builds before Firebase is configured. FCM stays unavailable until
+// this project's google-services.json is supplied and the app is rebuilt.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.example.voxa"
     compileSdk = flutter.compileSdkVersion

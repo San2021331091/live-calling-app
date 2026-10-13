@@ -105,8 +105,8 @@ contacts, statuses, or call records are added.
 
 Media sharing requires the ImgBB and Cloudinary configuration described in
 `frontend/voxa/.env.example`. Cross-network calling requires a working TURN
-configuration. Background push notifications, end-to-end encryption, read
-receipts, and WhatsApp feature parity are not implemented. Validate calls and
+configuration. Background push notifications require the Firebase setup below.
+End-to-end encryption, read receipts, and WhatsApp feature parity are not implemented. Validate calls and
 media on physical devices before deploying.
 
 Run `go test ./...` and `go vet ./...` in `backend`. Run `flutter analyze --no-pub`
@@ -119,7 +119,7 @@ The home screen opens on Chats and uses bottom navigation for Updates, Communiti
 
 Text drafts clear only after the backend broadcasts the persisted message with its client correlation ID. A timeout or disconnect keeps the draft and asks the user to check history before retrying, because a message may have reached the database before confirmation was lost. Restart the backend alongside this frontend update so the confirmation protocol is available. This confirms server persistence; delivery and read receipts are not implemented.
 
-Unsupported local-only group permission/disappearing-message settings have been removed. Names, profile bios, conversations, statuses, and calls continue to use the backend. Conversation overview reports counts from loaded history, without inferred topics. Chat screens load the latest 100 messages; Search and Media/Links/Docs paginate through older saved history. Background incoming-call push notifications and end-to-end encryption are not implemented. Media uploads require the configured ImgBB/Cloudinary providers, and cross-network calls may require TURN.
+Unsupported local-only group permission/disappearing-message settings have been removed. Names, profile bios, conversations, statuses, and calls continue to use the backend. Conversation overview reports counts from loaded history, without inferred topics. Chat screens load the latest 100 messages; Search and Media/Links/Docs paginate through older saved history. Background incoming-call notifications require Firebase configuration. End-to-end encryption is not implemented. Media uploads require the configured ImgBB/Cloudinary providers, and cross-network calls may require TURN.
 
 Verification commands:
 
@@ -131,7 +131,8 @@ flutter analyze --no-pub
 flutter test --no-pub
 ```
 
-On the current Windows machine, Application Control blocks `flutter_tester.exe`, so Flutter tests cannot execute until that executable is permitted by the machine policy. Static analysis can run normally.
+If Windows Application Control blocks a test executable, use an SDK allowed by
+the machine policy or run the corresponding Android integration test on an emulator.
 
 ## Media editing
 
@@ -143,7 +144,7 @@ Android video edits are exported as MP4 files with trim boundaries, optional aud
 
 Document selection accepts any file type. Documents up to 15 MB use authenticated multipart uploads to `POST /api/files` and persist in PostgreSQL; image/video uploads retain their existing providers. File links contain a signature scoped to that file, and Android opens them through the browser for download. Restart the backend to apply migration 009.
 
-Use **Delete chat** in a direct/group chat menu, or hold a conversation in the inbox. This hides the conversation and clears previous history for the current account; other participants keep their copies. A new message brings the conversation back. **Clear history** keeps the conversation in the inbox. Group deletion remains a separate creator-only action. Mute persists the preference for in-app inbox alerts.
+Use **Delete chat** in a direct/group chat menu, or hold a conversation in the inbox. This hides the conversation and clears previous history for the current account; other participants keep their copies. A new message brings the conversation back. **Clear history** keeps the conversation in the inbox. Group deletion remains a separate creator-only action. Mute persists the preference for in-app and FCM message alerts; it does not silence incoming calls.
 
 Database regression checks use isolated fixtures in a rolled-back transaction: `VOXA_INTEGRATION_TEST=1 go test ./...`. Android editor and rename checks run with `flutter test integration_test/chat_regression_test.dart -d emulator-5554`.
 
@@ -166,3 +167,74 @@ refresh event. Restart the backend to apply migration 010 before using this app.
 
 Appearance checks are included in `VOXA_INTEGRATION_TEST=1 go test ./...` and in
 `flutter test integration_test/chat_regression_test.dart -d emulator-5554`.
+
+## Firebase Cloud Messaging (Android)
+
+FCM delivery is implemented but disabled until you supply your Firebase configuration.
+The app still builds and runs without it. Open **Notifications** in the home menu
+to see registration status, retry, or open Android notification settings.
+
+1. In your Firebase project, add an Android app with package name
+   `com.example.voxa` (or change the Android application ID and register that ID).
+   Save its `google-services.json` to `frontend/voxa/android/app/google-services.json`.
+2. Enable the Firebase Cloud Messaging API for that project. Give the backend
+   service account permission to send FCM messages (Firebase Cloud Messaging API
+   Admin role). Store its private JSON key at
+   `backend/secrets/firebase-service-account.json`, or use Application Default
+   Credentials on your server (unset `GOOGLE_APPLICATION_CREDENTIALS` when using
+   credentials supplied by the hosting environment). Never put this private key in Flutter assets.
+3. Configure `backend/.env`:
+
+   ```dotenv
+   FCM_ENABLED=true
+   FIREBASE_PROJECT_ID=your-firebase-project-id
+   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-service-account.json
+   ```
+
+4. Restart with `go run .` from `backend` to apply migration 011 and start the
+   sender. Rebuild/install the Android app with `flutter run`; hot reload cannot
+   install Firebase's native configuration. Sign in and allow notifications.
+   Use a device/emulator with Google Play services.
+5. Test with two accounts/devices: put the receiving app in the background, send
+   a message, tap its notification, then try an incoming call. Muting a chat must
+   suppress new message alerts. Decline/end a call before tapping its old alert
+   to verify that it does not open an active call. Also test token refresh,
+   sign-out/account switching, permission denial, and reopening after termination.
+
+The authenticated `POST /api/devices/push` endpoint binds an installation/token
+to the signed-in user; `DELETE /api/devices/push/{installationID}` revokes it.
+Tokens update on sign-in, token rotation, and app resume. Sign-out revokes the
+server registration or Firebase token before removing the session; if both
+services are unreachable, reconnect and retry sign-out.
+
+PostgreSQL stores device tokens and a short-lived notification outbox, created
+atomically when a message or call is saved. Messages skip the sender and muted
+members. Delivery rechecks membership, mute, hidden/cleared history, device
+ownership, and ringing-call status. Failed deliveries retry up to five times;
+message jobs expire after five minutes and call jobs after two. Invalid tokens
+are removed; registrations inactive for 30 days expire. Cleanup runs even when
+FCM sending is disabled. Call signaling stays in Redis.
+
+Background notifications use generic lock-screen text. Taps load the current
+conversation or check that a call is still ringing before showing Accept/Decline.
+Foreground messages use the existing in-app alert. Android has separate Messages
+and Incoming calls channels. These are ordinary push alerts, not a full-screen
+system calling UI; already displayed call alerts can remain after hangup.
+Delivery is best effort and retries can duplicate an alert. Force-stopping the
+app in Android settings prevents delivery until it is manually reopened.
+
+This repository currently has no iOS runner. The shared sender includes APNs
+payloads, but an iOS target, Firebase plist, Push Notifications capability, and
+Firebase APNs credentials must be configured on macOS before testing iOS.
+Web/desktop push is not configured.
+
+Checks: `go test ./...`, `go vet ./...`,
+`VOXA_INTEGRATION_TEST=1 go test -run TestPushQueueIntegration` (after migration),
+`flutter analyze --no-pub`, and
+`flutter test integration_test/push_notification_test.dart -d emulator-5554`.
+The database test rolls back its fixtures and uses a fake sender; it does not
+send real pushes. End-to-end delivery requires the actual Firebase files above.
+
+References: [Firebase Android setup](https://firebase.google.com/docs/android/setup),
+[Admin SDK credentials](https://firebase.google.com/docs/admin/setup),
+and [Flutter message handling](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages).

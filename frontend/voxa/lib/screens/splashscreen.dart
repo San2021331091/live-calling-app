@@ -33,7 +33,12 @@ class _SplashScreenState extends State<SplashScreen> {
       _open(hasSession ? const HomeScreen() : const LoginScreen());
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
-        await ApiClient.instance.signOut();
+        try {
+          await ApiClient.instance.signOut();
+        } on ApiException catch (signOutError) {
+          if (mounted) setState(() => _error = signOutError.message);
+          return;
+        }
         if (mounted) _open(const LoginScreen());
       } else if (mounted) {
         setState(() => _error = error.message);

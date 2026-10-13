@@ -67,6 +67,8 @@ func (a *application) routes() *fiber.App {
 	register("POST", "/api/auth/register", http.HandlerFunc(a.handleRegister))
 	register("POST", "/api/auth/login", http.HandlerFunc(a.handleLogin))
 	register("GET", "/api/auth/me", a.auth(http.HandlerFunc(a.handleMe)))
+	register("POST", "/api/devices/push", a.auth(http.HandlerFunc(a.handleRegisterPush)))
+	register("DELETE", "/api/devices/push/:installationID", a.auth(http.HandlerFunc(a.handleDeletePush)), "installationID")
 	register("GET", "/api/profile", a.auth(http.HandlerFunc(a.handleProfile)))
 	register("PATCH", "/api/profile", a.auth(http.HandlerFunc(a.handleUpdateProfile)))
 	register("GET", "/api/users", a.auth(http.HandlerFunc(a.handleUsers)))

@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:voxa/colors/colors.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:voxa/screens/splashscreen.dart';
+import 'package:voxa/services/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  await PushNotificationService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -72,7 +74,9 @@ class MyApp extends StatelessWidget {
         ),
         snackBarTheme: SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
 

@@ -1,6 +1,9 @@
 package com.example.voxa
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.provider.Settings
 import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
@@ -21,6 +24,31 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val notifications = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notifications.createNotificationChannel(NotificationChannel(
+                "voxa_messages", "Messages", NotificationManager.IMPORTANCE_HIGH))
+            notifications.createNotificationChannel(NotificationChannel(
+                "voxa_calls", "Incoming calls", NotificationManager.IMPORTANCE_HIGH))
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.voxa/notifications")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "clear" -> { notifications.cancelAll(); result.success(null) }
+                    "settings" -> {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        } else {
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName"))
+                        }
+                        startActivity(intent)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MediaEditor(this).register(flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.voxa/external_links")
             .setMethodCallHandler { call, result ->

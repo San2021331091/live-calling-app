@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:voxa/customui/customcard.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/services/api_client.dart';
+import 'package:voxa/services/push_notification_service.dart';
 import 'package:voxa/screens/selectcontact.dart';
 
 enum ChatFilter { all, direct, groups }
@@ -66,7 +67,9 @@ class ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     try {
       final result = await ApiClient.instance.loadChats();
       if (mounted) {
-        if (!_isLoading && ModalRoute.of(context)?.isCurrent == true) {
+        if (!_isLoading &&
+            !PushNotificationService.instance.registered &&
+            ModalRoute.of(context)?.isCurrent == true) {
           final previous = {for (final chat in chats) chat.id: chat};
           final incoming = result
               .where(
