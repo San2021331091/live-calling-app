@@ -1,3 +1,7 @@
+
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +9,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Allow local builds before Firebase is configured. FCM stays unavailable until
-// this project's google-services.json is supplied and the app is rebuilt.
+// Load key.properties using java.io.FileInputStream
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use { input ->
+        keystoreProperties.load(input)
+    }
+}
+
+// Allow local builds before Firebase is configured.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -23,7 +36,6 @@ android {
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
-        // DISABLE treating warnings as errors
         allWarningsAsErrors = false
     }
 
@@ -35,13 +47,25 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storePassword = keystoreProperties.getProperty("storePassword")
+                storeFile = rootProject.file(
+                    keystoreProperties.getProperty("storeFile")
+                )
+            }
         }
     }
 
-    // Optional: apply to all Kotlin compile tasks (extra safety)
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         kotlinOptions {
             allWarningsAsErrors = false

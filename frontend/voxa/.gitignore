@@ -69,3 +69,6 @@ android/app/google-services.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+*.jks
+key.properties

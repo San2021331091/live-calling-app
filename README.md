@@ -2,6 +2,24 @@
 
 Voxa is a Flutter messaging and calling app backed by a Go API and PostgreSQL. The backend provides phone/password authentication, JWT-protected APIs, direct and group/community conversations, persisted message history, and real-time WebSocket delivery.
 
+## Download and backend
+
+- **Android APK:** [Download Voxa](https://drive.google.com/file/d/1sesPZdZLI7GiGakT25gdN2Td9FVH4os6/view?usp=sharing)
+- **Backend API:** [https://live-calling-app-theta.vercel.app](https://live-calling-app-theta.vercel.app)
+- **Backend health:** [https://live-calling-app-theta.vercel.app/readyz](https://live-calling-app-theta.vercel.app/readyz)
+
+Set `API_BASE_URL` in `frontend/voxa/.env` to the backend API URL when using this
+deployed backend.
+
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/Screenshot%202026-10-14%20000530.png" alt="Voxa direct chat" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000506.png" alt="Voxa call history" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000742.png" alt="Voxa communities" width="220">
+  <img src="screenshots/Screenshot%202026-10-14%20000914.png" alt="VoxaAI chat" width="220">
+</p>
+
 ## Requirements
 
 - Go 1.23.4 or later
