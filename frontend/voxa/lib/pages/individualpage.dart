@@ -26,7 +26,7 @@ import 'package:voxa/services/media_upload_service.dart';
 import 'package:voxa/pages/media_preview.dart';
 import 'package:voxa/screens/editimage.dart';
 import 'package:voxa/media/media_result.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:voxa/services/chat_connection.dart';
 
 class IndividualPage extends StatefulWidget {
   const IndividualPage({super.key, required this.chatModel});
@@ -49,7 +49,7 @@ class _IndividualPageState extends State<IndividualPage> {
   bool _isLoading = true;
   CallMedia? _startingCallMedia;
   String? _chatError;
-  WebSocketChannel? _channel;
+  ChatConnection? _channel;
   StreamSubscription<dynamic>? _subscription;
   bool _chatConnected = false;
   bool _sendingText = false;
@@ -85,7 +85,7 @@ class _IndividualPageState extends State<IndividualPage> {
     }
     ApiClient.instance.chatDisconnected(_channel);
     _subscription?.cancel();
-    _channel?.sink.close();
+    _channel?.close();
     super.dispose();
   }
 
@@ -144,10 +144,10 @@ class _IndividualPageState extends State<IndividualPage> {
     try {
       ApiClient.instance.chatDisconnected(_channel);
       await _subscription?.cancel();
-      await _channel?.sink.close();
+      await _channel?.close();
       final channel = await ApiClient.instance.connectToChat(chatId);
       if (!mounted) {
-        await channel.sink.close();
+        await channel.close();
         return;
       }
       _channel = channel;

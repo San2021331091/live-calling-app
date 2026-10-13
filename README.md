@@ -69,14 +69,34 @@ repository root) and **Framework Preset** set to **Other**. The root
 Vercel's generated function bridge separate from the backend Go package.
 `vercel.json` routes requests to that function. The Vercel instance serves HTTP
 API routes and call-signaling endpoints; it deliberately returns `501` for chat
-WebSocket upgrades. Calls still use the HTTP/Redis signaling endpoints.
+WebSocket upgrades. The Flutter client uses authenticated HTTP chat on
+`*.vercel.app` and falls back to it if another host rejects a WebSocket handshake.
+`POST /api/chats/{chatId}/messages` saves a message with a UUID request ID;
+repeating that ID/content returns the saved message without another insert or
+notification. `GET /api/chats/{chatId}/events` returns ordered message batches,
+supports an `after_id` cursor and includes the user's history-clear cutoff.
+Both endpoints enforce membership. The app polls every three seconds while
+the conversation is open and pauses polling in the background. Calls still use
+the HTTP/Redis signaling endpoints. AI and FCM background jobs still need the
+always-on worker; HTTP chat does not start those workers inside Vercel.
 
 For a deployed Flutter build, set `API_BASE_URL` to the Vercel deployment URL
 and `CHAT_WS_BASE_URL` to the HTTPS URL of the always-on Go server. The latter
 is also used for file upload/download so the app's 15 MB document feature does
 not hit Vercel's request/response body-size limits. Set `CORS_ORIGINS` on the
-always-on server to the web app origin too. Keep all service credentials out of
+always-on server to the web app origin too. When only using Vercel for text chat,
+leave `CHAT_WS_BASE_URL` empty or use the same HTTPS base URL as `API_BASE_URL`.
+The app converts HTTP(S) to WS(S) only for an actual WebSocket connection;
+do not put a `ws://` or `wss://` value in this setting.
+Keep all service credentials out of
 Flutter configuration and source control.
+
+The HTTP chat fallback requires both the updated backend deployment and an
+updated Flutter build. Until Vercel redeploys these routes, the new client will
+receive 404 when opening the HTTP conversation. No new database migration is
+needed. Validation: `VOXA_INTEGRATION_TEST=1 go test -run TestHTTPChatIntegration`
+uses temporary accounts and deletes them after checking send/receive, access
+control, duplicate prevention, burst pagination and per-user history clearing.
 
 The debug Android manifest permits local cleartext HTTP for development. Configure HTTPS for deployed builds; do not expose the development API over an untrusted network. Set `CORS_ORIGINS` to a comma-separated list of trusted web app origins when deploying.
 

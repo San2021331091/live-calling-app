@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -11,7 +12,7 @@ import 'package:voxa/model/message_model.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/status/statusmodel.dart';
 import 'package:voxa/services/web_socket_connector.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:voxa/services/chat_connection.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -448,7 +449,7 @@ class ApiClient {
     return StatusModel.fromJson(result);
   }
 
-  Future<WebSocketChannel> connectToChat(String chatId) async {
+  Future<ChatConnection> connectToChat(String chatId) async {
     final token = await _token;
     if (token == null || token.isEmpty) {
       throw const ApiException(
@@ -456,27 +457,71 @@ class ApiClient {
       );
     }
     final base = _chatWebSocketBaseUri;
+    if (base.host.endsWith('.vercel.app')) return _connectHTTPChat(chatId);
     final uri = base.replace(
       scheme: base.scheme == 'https' ? 'wss' : 'ws',
       path: '/ws/$chatId',
       queryParameters: kIsWeb ? {'access_token': token} : null,
     );
     final channel = connectWebSocketChannel(uri, token);
-    await channel.ready;
-    return channel;
+    // Listen before awaiting ready so a failed handshake cannot become an
+    // unhandled stream error. Keep the original stream open for its subscriber.
+    final buffered = channel.stream.asBroadcastStream();
+    final guard = buffered.listen((_) {}, onError: (Object _) {});
+    try {
+      await channel.ready.timeout(const Duration(seconds: 8));
+      await guard.cancel();
+      return SocketChatConnection(channel, stream: buffered);
+    } catch (_) {
+      await guard.cancel();
+      unawaited(channel.sink.close().catchError((_) {}));
+      return _connectHTTPChat(chatId);
+    }
   }
 
-  Future<void> sendMessage(WebSocketChannel channel, String content) async {
+  Future<ChatConnection> _connectHTTPChat(String chatId) async {
+    final connection = HttpChatConnection(
+      load: (after) => _request(
+        _baseUri
+            .resolve('api/chats/$chatId/events')
+            .replace(
+              queryParameters: after == null ? null : {'after_id': after},
+            ),
+      ),
+      send: (message) => _request(
+        _baseUri.resolve('api/chats/$chatId/messages'),
+        method: 'POST',
+        body: {
+          'content': message['content'],
+          'client_id': message['client_id'],
+        },
+      ),
+    );
+    try {
+      await connection.start();
+      return connection;
+    } catch (_) {
+      await connection.close();
+      rethrow;
+    }
+  }
+
+  Future<void> sendMessage(ChatConnection channel, String content) async {
     if (content.trim().isEmpty || content.runes.length > 5000) {
       throw const ApiException('Messages must contain 1 to 5000 characters.');
     }
+    final random = Random.secure();
+    final bytes = List.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     final clientId =
-        '${DateTime.now().microsecondsSinceEpoch}-${_messageSequence++}';
+        '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
     final pending = _pendingMessages.putIfAbsent(channel, () => {});
     final completion = Completer<void>();
     pending[clientId] = completion;
     try {
-      channel.sink.add(
+      channel.add(
         jsonEncode({
           'type': 'message',
           'content': content,
@@ -497,11 +542,9 @@ class ApiClient {
     }
   }
 
-  int _messageSequence = 0;
-  final Map<WebSocketChannel, Map<String, Completer<void>>> _pendingMessages =
-      {};
+  final Map<ChatConnection, Map<String, Completer<void>>> _pendingMessages = {};
 
-  void handleChatEvent(WebSocketChannel? channel, Map<String, dynamic> event) {
+  void handleChatEvent(ChatConnection? channel, Map<String, dynamic> event) {
     final message = event['message'];
     final id =
         event['type'] == 'message' &&
@@ -522,7 +565,7 @@ class ApiClient {
     }
   }
 
-  void chatDisconnected(WebSocketChannel? channel) {
+  void chatDisconnected(ChatConnection? channel) {
     final pending = _pendingMessages.remove(channel);
     if (pending == null) return;
     for (final completion in pending.values) {

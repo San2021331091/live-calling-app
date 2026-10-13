@@ -92,6 +92,8 @@ func (a *application) routes(webSocketSetting ...bool) *fiber.App {
 	register("PATCH", "/api/chats/:chatID", a.auth(http.HandlerFunc(a.handleUpdateGroupChat)), "chatID")
 	register("DELETE", "/api/chats/:chatID", a.auth(http.HandlerFunc(a.handleDeleteGroupChat)), "chatID")
 	register("GET", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleMessages)), "chatID")
+	register("POST", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleHTTPMessage)), "chatID")
+	register("GET", "/api/chats/:chatID/events", a.auth(http.HandlerFunc(a.handleHTTPChatEvents)), "chatID")
 	register("DELETE", "/api/chats/:chatID/messages", a.auth(http.HandlerFunc(a.handleClearChatHistory)), "chatID")
 	register("PATCH", "/api/chats/:chatID/preferences", a.auth(http.HandlerFunc(a.handleChatPreferences)), "chatID")
 	register("GET", "/api/chats/:chatID/appearance", a.auth(http.HandlerFunc(a.handleChatAppearance)), "chatID")

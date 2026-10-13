@@ -25,7 +25,7 @@ import 'package:voxa/services/media_upload_service.dart';
 import 'package:voxa/pages/media_preview.dart';
 import 'package:voxa/screens/editimage.dart';
 import 'package:voxa/media/media_result.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:voxa/services/chat_connection.dart';
 
 class GroupChatPage extends StatefulWidget {
   final ChatModel group;
@@ -43,7 +43,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   final List<MessageModel> messages = [];
   final ScrollController _messageScroll = ScrollController();
-  WebSocketChannel? _channel;
+  ChatConnection? _channel;
   StreamSubscription<dynamic>? _subscription;
   bool _isLoading = true;
   bool _sendingText = false;
@@ -77,7 +77,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _messageScroll.dispose();
     ApiClient.instance.chatDisconnected(_channel);
     _subscription?.cancel();
-    _channel?.sink.close();
+    _channel?.close();
     super.dispose();
   }
 
@@ -131,10 +131,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
     try {
       ApiClient.instance.chatDisconnected(_channel);
       await _subscription?.cancel();
-      await _channel?.sink.close();
+      await _channel?.close();
       final channel = await ApiClient.instance.connectToChat(chatId);
       if (!mounted) {
-        await channel.sink.close();
+        await channel.close();
         return;
       }
       _channel = channel;

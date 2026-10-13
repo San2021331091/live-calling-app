@@ -5,19 +5,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:voxa/main.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/services/api_client.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:voxa/services/chat_connection.dart';
 
-class TestSink implements WebSocketSink {
+class TestSink {
   final sent = <String>[];
-  @override
   void add(dynamic data) => sent.add(data as String);
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class TestChannel implements WebSocketChannel {
-  @override
+class TestChannel implements ChatConnection {
   final TestSink sink = TestSink();
+  @override
+  void add(String event) => sink.add(event);
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
