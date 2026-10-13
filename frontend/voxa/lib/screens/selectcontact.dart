@@ -1,5 +1,6 @@
 import 'package:voxa/customui/avatar_photo.dart';
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/voxa_ai_tile.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/model/user_model.dart';
@@ -182,6 +183,7 @@ class _SelectContactState extends State<SelectContact> {
 
       body: ListView(
         children: [
+          const VoxaAITile(),
           _topTile(icon: Icons.group, title: "New group", onTap: _createGroup),
           _topTile(
             icon: Icons.person_add,

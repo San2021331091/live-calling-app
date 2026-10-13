@@ -187,9 +187,9 @@ func (a *application) loadPush(ctx context.Context, id int64) (*messaging.Messag
 }
 
 func buildPush(token, user, chat, call, message, event string, expires time.Time) *messaging.Message {
-	kind, channel, tag, body := "chat_message", "voxa_messages", "chat_"+chat, "You have a new message"
+	kind, channel, tag, body, sound := "chat_message", "voxa_messages", "chat_"+chat, "You have a new message", "default"
 	if call != "" {
-		kind, channel, tag, body = "incoming_call", "voxa_calls", "call_"+call, "You have an incoming call. Tap to answer."
+		kind, channel, tag, body, sound = "incoming_call", "voxa_calls_ringtone", "call_"+call, "You have an incoming call. Tap to answer.", "call_ring"
 	}
 	ttl := time.Until(expires)
 	if ttl < 0 {
@@ -201,7 +201,7 @@ func buildPush(token, user, chat, call, message, event string, expires time.Time
 		Notification: &messaging.Notification{Title: "Voxa", Body: body},
 		Data:         map[string]string{"type": kind, "recipient_id": user, "chat_id": chat, "call_id": call, "message_id": message, "event_id": event},
 		Android: &messaging.AndroidConfig{Priority: "high", TTL: &ttl, Notification: &messaging.AndroidNotification{
-			ChannelID: channel, Tag: tag, Icon: "ic_notification", Sound: "default"}},
+			ChannelID: channel, Tag: tag, Icon: "ic_notification", Sound: sound}},
 		APNS: &messaging.APNSConfig{Headers: map[string]string{"apns-push-type": "alert", "apns-priority": "10", "apns-expiration": strconv.FormatInt(expires.Unix(), 10)},
 			Payload: &messaging.APNSPayload{Aps: &messaging.Aps{Sound: "default"}}},
 	}

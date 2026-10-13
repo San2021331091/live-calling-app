@@ -1,6 +1,7 @@
 // ignore_for_file: file_names
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/voxa_ai_tile.dart';
 import 'package:voxa/customui/customcard.dart';
 import 'package:voxa/model/chatmodel.dart';
 import 'package:voxa/services/api_client.dart';
@@ -190,6 +191,9 @@ class ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               ],
             ),
           ),
+          if (_filter != ChatFilter.groups &&
+              'voxaai ai assistant'.contains(_query.toLowerCase().trim()))
+            const VoxaAITile(),
           if (_error != null)
             MaterialBanner(
               content: Text(_error!),

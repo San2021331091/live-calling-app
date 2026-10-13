@@ -85,6 +85,9 @@ The debug Android manifest permits local cleartext HTTP for development. Configu
 Direct audio and video calls use Flutter WebRTC. The backend creates call records, delivers SDP/ICE signals to the other participant, and polls for incoming calls while the app is open. Apply the database migrations by restarting the backend. Group calls are not supported; they require a media-server/SFU architecture.
 
 Call history and status transitions remain durable in PostgreSQL's `calls` table.
+Incoming-call prompts loop the bundled `assets/call_ring.mp3` until the call is
+accepted or declined. Android push notifications use the same ringtone through
+the `voxa_calls_ringtone` notification channel.
 Redis caches call records for 5 seconds and incoming-call lists (including empty
 lists) for 2 seconds. Creation, answer, and hangup invalidate those caches. Cache
 misses read PostgreSQL; generation checks prevent an in-flight database read from
@@ -275,3 +278,72 @@ send real pushes. End-to-end delivery requires the actual Firebase files above.
 References: [Firebase Android setup](https://firebase.google.com/docs/android/setup),
 [Admin SDK credentials](https://firebase.google.com/docs/admin/setup),
 and [Flutter message handling](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages).
+
+## VoxaAI
+
+VoxaAI appears in Chats, search and New chat for every signed-in account in the
+updated app. It is a text assistant with its own conversation; ordinary chats,
+contacts and attachments are never included in its requests. Each account's AI
+history is stored in PostgreSQL and loaded on its other devices. Responses can
+be copied, failed questions reused, and history cleared across that account's
+devices. Clearing local/server history cannot retract requests already sent to
+OpenRouter. Replies appear while the screen polls or when it is reopened;
+VoxaAI does not currently send reply push notifications.
+
+Configure only the always-on backend's private environment:
+
+```dotenv
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+```
+
+Restart `go run ./cmd/server` to apply migration 012 and start the two queue
+workers, then rebuild the Flutter app. The same PostgreSQL and Redis services
+must be configured for the worker and any Vercel API deployment. Set the same
+`OPENROUTER_MODEL` on both if overriding it. Vercel only saves and reads jobs;
+the always-on server performs inference outside Vercel request timeouts. A
+short Redis heartbeat makes the app show unavailable when the worker is offline.
+Never put the OpenRouter key in Flutter assets or client environment files.
+
+The assistant's name and behavior are system instructions, not model training.
+Requests include the most recent 12 completed AI exchanges. Only `:free` models
+are accepted, with no paid fallback. Each account can have one pending request
+and send up to six requests per minute; provider quotas may be lower. Provider
+errors display a retry message without exposing credentials or raw errors.
+History remains until cleared by the account or its account is deleted.
+
+Checks: `go test ./...`, `flutter analyze --no-pub`, and (after migration)
+`VOXA_INTEGRATION_TEST=1 go test -run TestAIHistoryIsolationIntegration`.
+`VOXA_AI_LIVE_TEST=1 go test -run TestAILiveProvider -v` explicitly sends one
+synthetic greeting using the configured key; normal tests use a fake provider.
+
+VoxaAI also has Photos, Videos and Web selectors beside its composer. Add
+`PEXELS_API_KEY` to the always-on backend environment for photo/video search.
+The key stays on the server; results contain Pexels source/creator credits,
+image previews and video playback links. The server fetches at most six media
+results per query. Queries are limited to 300 characters and share the existing
+per-account sending limit. Search results are saved with the conversation and
+deleted by the green header's Delete conversation action after confirmation.
+
+Set `TAVILY_API_KEY` in the always-on server's private environment for live web
+search. Web mode calls `https://api.tavily.com/search`, then returns a concise
+plain-text answer with up to three structured source links. Basic search
+requests publication dates when available; automatic advanced search is disabled.
+Provider quotas produce a clear search error without exposing the key or
+guessing facts.
+
+Regular Chat uses NVIDIA Nemotron through OpenRouter without a search request.
+For changing facts and latest-information questions, Nemotron resolves a query
+using the last 12 completed turns and the server searches Tavily. Nemotron then
+answers from the returned excerpts with source links, comparing available dates
+and correcting unsupported older replies. Sources are untrusted data, never
+instructions. Empty results do not trigger a fallback to old model knowledge.
+Retrieval today is not proof of a source's freshness; missing dates and conflicting
+sources are handled as uncertainty. Source cards are saved across devices.
+Media search continues using the existing provider, streaming from its CDN.
+`VOXA_AI_GROUNDING_LIVE_TEST=1 go test -run TestAIGroundingLive -v` checks the
+real model's history-aware query routing; ordinary tests use a fake model and lookup.
+
+Restart the Go server to apply migration 013 and rebuild the app (URL launcher
+adds a native plugin). `VOXA_AI_SEARCH_LIVE_TEST=1 go test -run TestAISearch -v`
+checks the providers with sample queries; ordinary tests use JSON fixtures.

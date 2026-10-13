@@ -49,6 +49,7 @@ func RunServer() {
 		log.Print("FCM notifications disabled; configure Firebase and FCM_ENABLED to enable")
 	}
 	go app.runPushWorker(pushCtx)
+	app.runAIWorker(pushCtx)
 
 	server := app.routes()
 	address := ":" + envOr("PORT", "8080")

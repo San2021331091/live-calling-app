@@ -7,6 +7,7 @@ import android.provider.Settings
 import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.media.MediaRecorder
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -28,8 +29,15 @@ class MainActivity : FlutterActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notifications.createNotificationChannel(NotificationChannel(
                 "voxa_messages", "Messages", NotificationManager.IMPORTANCE_HIGH))
-            notifications.createNotificationChannel(NotificationChannel(
-                "voxa_calls", "Incoming calls", NotificationManager.IMPORTANCE_HIGH))
+            val callChannel = NotificationChannel(
+                "voxa_calls_ringtone", "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
+            callChannel.setSound(
+                Uri.parse("android.resource://$packageName/${R.raw.call_ring}"),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build())
+            notifications.createNotificationChannel(callChannel)
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.voxa/notifications")
             .setMethodCallHandler { call, result ->

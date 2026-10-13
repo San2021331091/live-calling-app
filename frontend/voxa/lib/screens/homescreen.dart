@@ -18,6 +18,7 @@ import 'package:voxa/services/api_client.dart';
 import 'package:voxa/media/media_result.dart';
 import 'package:voxa/services/status_upload_service.dart';
 import 'package:voxa/services/push_notification_service.dart';
+import 'package:voxa/services/incoming_call_ringtone.dart';
 import 'package:voxa/pages/groupchatpage.dart';
 import 'package:voxa/pages/individualpage.dart';
 
@@ -257,25 +258,55 @@ class HomeScreenState extends State<HomeScreen>
   Future<void> _promptForCall(CallModel call) async {
     _showingIncomingDialog = true;
     final navigator = Navigator.of(context);
-    final accept = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Incoming ${call.media.name} call'),
-        content: Text('${call.name} is calling you.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Decline'),
+    final ringtone = IncomingCallRingtone.instance;
+    bool? accept;
+    try {
+      try {
+        await ringtone.start();
+      } catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'incoming call ringtone',
+            context: ErrorDescription('while starting the incoming call sound'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Accept'),
+        );
+      }
+      if (!mounted) return;
+      accept = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Incoming ${call.media.name} call'),
+          content: Text('${call.name} is calling you.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Decline'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Accept'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _showingIncomingDialog = false;
+      try {
+        await ringtone.stop();
+      } catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'incoming call ringtone',
+            context: ErrorDescription('while stopping the incoming call sound'),
           ),
-        ],
-      ),
-    );
-    _showingIncomingDialog = false;
+        );
+      }
+    }
     if (!mounted) return;
     if (accept == true) {
       await navigator.push(

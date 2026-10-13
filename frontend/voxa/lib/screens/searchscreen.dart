@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:voxa/customui/voxa_ai_tile.dart';
 import 'package:voxa/customui/gradient_app_bar_background.dart';
 import 'package:voxa/model/user_model.dart';
 import 'package:voxa/pages/individualpage.dart';
@@ -76,12 +77,16 @@ class _SearchScreenState extends State<SearchScreen> {
     } on ApiException catch (exception) {
       if (mounted) _showError(exception.message);
     } catch (_) {
-      if (mounted) _showError('Could not start this chat. Check your connection.');
+      if (mounted) {
+        _showError('Could not start this chat. Check your connection.');
+      }
     }
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -104,7 +109,15 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: _buildResults(),
+        child: Column(
+          children: [
+            if ('voxaai ai assistant'.contains(
+              _searchController.text.toLowerCase().trim(),
+            ))
+              const VoxaAITile(),
+            Expanded(child: _buildResults()),
+          ],
+        ),
       ),
     );
   }

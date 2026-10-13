@@ -28,6 +28,30 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._();
 
+  Future<Map<String, dynamic>> loadAIConversation({int? before}) => _request(
+    _baseUri
+        .resolve('api/ai/conversation')
+        .replace(
+          queryParameters: before == null ? null : {'before': '$before'},
+        ),
+  );
+
+  Future<void> sendAIMessage(
+    String message,
+    String clientId, {
+    String mode = 'chat',
+  }) async {
+    await _request(
+      _baseUri.resolve('api/ai/messages'),
+      method: 'POST',
+      body: {'message': message, 'client_id': clientId, 'mode': mode},
+    );
+  }
+
+  Future<void> clearAIConversation() async {
+    await _request(_baseUri.resolve('api/ai/conversation'), method: 'DELETE');
+  }
+
   Future<void> Function()? beforeSignOut;
 
   Future<void> registerPushDevice(
