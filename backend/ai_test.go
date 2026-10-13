@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -136,7 +138,8 @@ func TestAILiveProvider(t *testing.T) {
 	t.Log("Free model returned a reply identifying as VoxaAI")
 }
 
-// Exercise the running local server with temporary accounts, then delete them.
+// Exercise a running server with temporary accounts, then delete them.
+// The target must use the database and JWT secret configured in .env.
 func TestAILiveConversation(t *testing.T) {
 	if os.Getenv("VOXA_AI_E2E_TEST") != "1" {
 		t.Skip("set VOXA_AI_E2E_TEST=1 with the local server running")
@@ -158,10 +161,34 @@ func TestAILiveConversation(t *testing.T) {
 		}
 		defer db.Exec(`DELETE FROM users WHERE id=$1`, id)
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	baseURL := strings.TrimRight(envOr("VOXA_AI_E2E_BASE_URL", "http://127.0.0.1:8080"), "/")
+	target, err := url.Parse(baseURL)
+	if err != nil || target.Hostname() == "" || target.User != nil || (target.Scheme != "https" && target.Hostname() != "127.0.0.1") {
+		t.Fatal("test target must be HTTPS or the local server")
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defer transport.CloseIdleConnections()
+	if edgeIP := os.Getenv("VOXA_AI_E2E_EDGE_IP"); edgeIP != "" {
+		if net.ParseIP(edgeIP) == nil || target.Scheme != "https" {
+			t.Fatal("edge override requires an IP address and HTTPS")
+		}
+		dialer := &net.Dialer{Timeout: 8 * time.Second}
+		transport.Proxy = nil
+		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(address)
+			if err != nil || host != target.Hostname() {
+				return nil, errors.New("unexpected diagnostic connection target")
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(edgeIP, port))
+		}
+		// Only the dial address changes; TLS still verifies the deployment hostname.
+		t.Log("Using an explicit edge IP for diagnostics; normal DNS connectivity is not tested")
+	}
+	client := &http.Client{Timeout: 15 * time.Second, Transport: transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	request := func(id, method, path, body string, status int) map[string]json.RawMessage {
 		t.Helper()
-		r, err := http.NewRequest(method, "http://127.0.0.1:8080"+path, strings.NewReader(body))
+		r, err := http.NewRequest(method, baseURL+path, strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +202,7 @@ func TestAILiveConversation(t *testing.T) {
 		r.Header.Set("Content-Type", "application/json")
 		res, err := client.Do(r)
 		if err != nil {
-			t.Fatal("local API unavailable")
+			t.Fatal("target API unavailable")
 		}
 		defer res.Body.Close()
 		if res.StatusCode != status {
@@ -189,8 +216,11 @@ func TestAILiveConversation(t *testing.T) {
 	}
 	request("", "GET", "/api/ai/conversation", "", 401)
 	initial := request(owner, "GET", "/api/ai/conversation", "", 200)
+	t.Logf("GET /api/ai/conversation: HTTP 200, worker available=%s", initial["available"])
 	if string(initial["available"]) != "true" {
-		t.Fatal("worker unavailable")
+		body := `{"client_id":"` + uuid.NewString() + `","message":"Introduce yourself in one short sentence."}`
+		request(owner, "POST", "/api/ai/messages", body, 503)
+		t.Fatal("worker unavailable; POST /api/ai/messages returned HTTP 503")
 	}
 	message := `{"client_id":"` + uuid.NewString() + `","message":"Introduce yourself in one short sentence."}`
 	request(owner, "POST", "/api/ai/messages", message, 202)
