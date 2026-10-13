@@ -43,7 +43,7 @@ The frontend reads `API_BASE_URL` from `frontend/voxa/.env`. That local file is 
 
 ## Deploying the HTTP API to Vercel
 
-The Vercel project root must be `backend/`. The Go function serves the HTTP API,
+The Vercel project root must be the repository root. The Go function serves the HTTP API,
 but Vercel Functions are not used for the app's long-lived chat WebSockets or
 background push worker. Keep the regular Go server running on an always-on host
 such as Render or Railway; it owns `/ws/{chatId}` and drains queued FCM jobs.
@@ -63,13 +63,13 @@ needed):
   always-on worker should use `GOOGLE_APPLICATION_CREDENTIALS` pointing to its
   private service-account file instead.
 
-In Vercel, deploy the repository with **Root Directory** set to `backend` and
-**Framework Preset** set to **Other** so Vercel builds the `/api` Go Function
-rather than treating the separate `cmd/server` process as the Vercel server.
-`backend/vercel.json` routes requests to the Go function. The Vercel instance
-serves HTTP API routes and call-signaling endpoints; it deliberately returns
-`501` for chat WebSocket upgrades. Calls still use the HTTP/Redis signaling
-endpoints.
+In Vercel, deploy the repository with **Root Directory** set to `.` (the
+repository root) and **Framework Preset** set to **Other**. The root
+`api/index.go` delegates to the backend handler, while the root Go module keeps
+Vercel's generated function bridge separate from the backend Go package.
+`vercel.json` routes requests to that function. The Vercel instance serves HTTP
+API routes and call-signaling endpoints; it deliberately returns `501` for chat
+WebSocket upgrades. Calls still use the HTTP/Redis signaling endpoints.
 
 For a deployed Flutter build, set `API_BASE_URL` to the Vercel deployment URL
 and `CHAT_WS_BASE_URL` to the HTTPS URL of the always-on Go server. The latter
