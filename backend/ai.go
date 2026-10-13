@@ -43,6 +43,9 @@ type aiChatMessage struct {
 
 func aiModel() string { return envOr("OPENROUTER_MODEL", defaultAIModel) }
 func (a *application) aiAvailable(ctx context.Context) bool {
+	if a.inlineAI {
+		return strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) != "" && strings.HasSuffix(aiModel(), ":free")
+	}
 	if a.callRedis == nil {
 		return false
 	}
@@ -57,6 +60,15 @@ func (a *application) handleAIConversation(w http.ResponseWriter, r *http.Reques
 		before, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil || before <= 0 {
 			writeError(w, 400, "invalid conversation cursor")
+			return
+		}
+	}
+	if a.inlineAI {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		err := a.expireAITurns(ctx, a.db, authenticatedUserID(r))
+		cancel()
+		if err != nil {
+			writeError(w, 500, "could not load VoxaAI conversation")
 			return
 		}
 	}
@@ -131,11 +143,21 @@ func (a *application) handleAISend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "could not save your message")
 		return
 	}
+	if a.inlineAI {
+		if err = a.expireAITurns(ctx, tx, userID); err != nil {
+			writeError(w, 500, "could not save your message")
+			return
+		}
+	}
 	var existingPrompt, existingMode string
 	err = tx.QueryRowContext(ctx, `SELECT prompt,mode FROM ai_turns WHERE user_id=$1 AND client_id=$2`, userID, req.ClientID).Scan(&existingPrompt, &existingMode)
 	if err == nil {
 		if existingPrompt != req.Message || existingMode != req.Mode {
 			writeError(w, 409, "message ID already used")
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			writeError(w, 500, "could not confirm your message")
 			return
 		}
 		writeJSON(w, 200, map[string]bool{"saved": true})
@@ -169,12 +191,24 @@ func (a *application) handleAISend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 429, "Please wait a minute before sending more messages to VoxaAI.")
 		return
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO ai_turns(user_id,client_id,prompt,mode) VALUES($1,$2,$3,$4)`, userID, req.ClientID, req.Message, req.Mode)
+	var turnID int64
+	if a.inlineAI {
+		// Commit ownership before inference: duplicate requests and queue workers
+		// cannot run this turn concurrently. The lease outlasts the function.
+		err = tx.QueryRowContext(ctx, `INSERT INTO ai_turns(user_id,client_id,prompt,mode,status,attempts,lease_until)
+		VALUES($1,$2,$3,$4,'processing',1,now()+interval '90 seconds') RETURNING id`, userID, req.ClientID, req.Message, req.Mode).Scan(&turnID)
+	} else {
+		_, err = tx.ExecContext(ctx, `INSERT INTO ai_turns(user_id,client_id,prompt,mode) VALUES($1,$2,$3,$4)`, userID, req.ClientID, req.Message, req.Mode)
+	}
 	if err == nil {
 		err = tx.Commit()
 	}
 	if err != nil {
 		writeError(w, 500, "could not save your message")
+		return
+	}
+	if a.inlineAI {
+		a.finishInlineAITurn(w, r, turnID, userID, req.Message, req.Mode)
 		return
 	}
 	writeJSON(w, 202, map[string]bool{"saved": true})
@@ -201,8 +235,8 @@ func (a *application) handleAIClear(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"cleared": true})
 }
 
-// Only the always-on Go process runs inference. Vercel requests just save/read
-// turns, so disconnecting the phone or a function timeout cannot lose a reply.
+// The standalone Go server can still drain queued jobs. Vercel performs AI
+// requests inline and does not require this process or its Redis heartbeat.
 func (a *application) runAIWorker(ctx context.Context) {
 	if a.callRedis == nil {
 		return
@@ -265,24 +299,7 @@ func (a *application) aiWorkerLoop(ctx context.Context, key, model string) {
 			cancel()
 			continue
 		}
-		var reply string
-		results := []aiSearchResult{}
-		if mode == "web" {
-			_, results, err = aiSearch(jobCtx, http.DefaultClient, mode, prompt)
-			if err == nil && len(results) > 0 {
-				reply, err = requestAISearchAnswer(jobCtx, http.DefaultClient, "https://openrouter.ai/api/v1/chat/completions", key, model, prompt, results)
-			} else if err == nil {
-				reply = "No relevant web results were found. Try a more specific question."
-			}
-		} else if mode != "chat" {
-			reply, results, err = aiSearch(jobCtx, http.DefaultClient, mode, prompt)
-		} else {
-			var history []aiChatMessage
-			history, err = a.aiHistory(jobCtx, userID, id, prompt)
-			if err == nil {
-				reply, results, err = requestGroundedAIReply(jobCtx, http.DefaultClient, "https://openrouter.ai/api/v1/chat/completions", key, model, history, aiSearch)
-			}
-		}
+		reply, results, err := a.generateAIReply(jobCtx, key, model, id, userID, prompt, mode)
 		cancel()
 		status, errorText := "complete", ""
 		if err != nil {

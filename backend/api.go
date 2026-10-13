@@ -29,6 +29,7 @@ func NewVercelHandler(ctx context.Context) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	app.inlineAI = true
 	return adaptor.FiberApp(app.routes(false)), nil
 }
 

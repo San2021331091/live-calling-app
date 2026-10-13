@@ -46,6 +46,7 @@ class ApiClient {
       _baseUri.resolve('api/ai/messages'),
       method: 'POST',
       body: {'message': message, 'client_id': clientId, 'mode': mode},
+      receiveTimeout: const Duration(seconds: 70),
     );
   }
 
@@ -738,6 +739,7 @@ class ApiClient {
     Uri uri, {
     String method = 'GET',
     Map<String, Object?>? body,
+    Duration? receiveTimeout,
   }) async {
     final token = await _token;
     if (token == null || token.isEmpty) {
@@ -753,6 +755,7 @@ class ApiClient {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(body),
+        receiveTimeout: receiveTimeout,
       ),
       'PATCH' => _sendJson(
         uri,
@@ -778,12 +781,13 @@ class ApiClient {
     Uri uri, {
     required Map<String, String> headers,
     required String body,
+    Duration? receiveTimeout,
   }) {
     return _sendRequest(
       () => _dio.postUri<dynamic>(
         uri,
         data: jsonDecode(body),
-        options: Options(headers: headers),
+        options: Options(headers: headers, receiveTimeout: receiveTimeout),
       ),
     );
   }

@@ -2,7 +2,10 @@ module github.com/San2021331091/live-calling-app/vercel
 
 go 1.23.4
 
-require backend v0.0.0
+require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/alicebob/miniredis/v2 v2.40.0
+)
 
 require (
 	cel.dev/expr v0.23.1 // indirect
@@ -84,4 +87,3 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace backend => ./backend

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"backend"
+	"github.com/San2021331091/live-calling-app/vercel/backend"
 )
 
 var (

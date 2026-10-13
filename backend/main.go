@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ type application struct {
 	allowAll  bool
 	hub       *messageHub
 	push      pushSender
+	inlineAI  bool
+	aiClient  *http.Client
 }
 
 func RunServer() {
